@@ -1,6 +1,16 @@
-import { Body, Controller, HttpCode, HttpStatus, Post } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  HttpCode,
+  HttpStatus,
+  Post,
+  Request,
+  UseGuards,
+} from '@nestjs/common';
 
-import { AuthResult, AuthService } from './auth.service';
+import { AuthResult, AuthService, SignInData } from './auth.service';
+import { PassportJwtGuard } from './guards/passport-jwt.guard';
+import { PassportLocalGuard } from './guards/passport-local.guard';
 
 @Controller('auth')
 export class AuthController {
@@ -8,9 +18,14 @@ export class AuthController {
 
   @HttpCode(HttpStatus.OK)
   @Post('login')
-  login(
-    @Body() input: { username: string; password: string },
-  ): Promise<AuthResult | null> {
-    return this.authService.authenticate(input);
+  @UseGuards(PassportLocalGuard)
+  login(@Request() request: { user: SignInData }): Promise<AuthResult> {
+    return this.authService.signIn(request.user);
+  }
+
+  @UseGuards(PassportJwtGuard)
+  @Get('me')
+  getUserInfo(@Request() request: { user: SignInData }): SignInData {
+    return request.user;
   }
 }
