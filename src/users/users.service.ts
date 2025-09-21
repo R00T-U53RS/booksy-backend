@@ -1,24 +1,21 @@
-
 import { Injectable } from '@nestjs/common';
 
-export type User = any;
+export interface User {
+  id: number;
+  username: string;
+  password: string;
+}
+
+// FIXME: a better way to store users
+const users: User[] = [
+  { id: 1, username: 'admin', password: 'admin' },
+  { id: 2, username: 'user', password: 'user' },
+];
 
 @Injectable()
 export class UsersService {
-  private readonly users = [
-    {
-      userId: 1,
-      username: 'john',
-      password: 'changeme',
-    },
-    {
-      userId: 2,
-      username: 'maria',
-      password: 'guess',
-    },
-  ];
-
-  async findOne(username: string): Promise<User | undefined> {
-    return this.users.find(user => user.username === username);
+  // eslint-disable-next-line @typescript-eslint/require-await, require-await
+  async findUserByName(username: string): Promise<User | undefined> {
+    return users.find(user => user.username === username);
   }
 }

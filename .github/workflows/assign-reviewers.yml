@@ -1,0 +1,27 @@
+name: Assign Reviewers
+
+on:
+  pull_request:
+    types: [opened, ready_for_review]
+
+jobs:
+  assign_reviewers:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Set Reviewers for Vaibhav
+        if: |
+          github.event.pull_request.user.login == 'Z3RO-O'
+        run: |
+          echo "REVIEWERS=Koruto" >> $GITHUB_ENV
+
+      - name: Set Reviewers for Hemant
+        if: |
+          github.event.pull_request.user.login == 'Koruto'
+        run: |
+          echo "REVIEWERS=Z3RO-O" >> $GITHUB_ENV
+
+      # Assign Reviewers
+      - name: Assign Reviewers
+        uses: hkusu/review-assign-action@v1.4.0
+        with:
+          reviewers: ${{ env.REVIEWERS }}
