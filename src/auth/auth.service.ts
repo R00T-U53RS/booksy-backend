@@ -3,19 +3,9 @@ import { JwtService } from '@nestjs/jwt';
 
 import { UsersService } from '../users/users.service';
 
-interface AuthInput {
-  username: string;
-  password: string;
-}
-export interface SignInData {
-  id: number;
-  username: string;
-}
-export interface AuthResult {
-  access_token: string;
-  id: number;
-  username: string;
-}
+import { AuthInputDto } from './dto/auth-input.dto';
+import { AuthResultDto } from './dto/auth-result.dto';
+import { SignInDataDto } from './dto/sign-in-data.dto';
 
 @Injectable()
 export class AuthService {
@@ -24,7 +14,7 @@ export class AuthService {
     private readonly jwtService: JwtService,
   ) {}
 
-  async authenticate(input: AuthInput): Promise<AuthResult | null> {
+  async authenticate(input: AuthInputDto): Promise<AuthResultDto | null> {
     const user = await this.validateUser(input);
 
     if (!user) {
@@ -34,7 +24,7 @@ export class AuthService {
     return this.signIn(user);
   }
 
-  async validateUser(input: AuthInput): Promise<SignInData | null> {
+  async validateUser(input: AuthInputDto): Promise<SignInDataDto | null> {
     const user = await this.usersService.findUserByName(input.username);
 
     if (user && user.password === input.password) {
@@ -44,7 +34,7 @@ export class AuthService {
     return null;
   }
 
-  async signIn(user: SignInData): Promise<AuthResult> {
+  async signIn(user: SignInDataDto): Promise<AuthResultDto> {
     const tokenPayload = { sub: user.id, username: user.username };
 
     const accessToken = await this.jwtService.signAsync(tokenPayload);
