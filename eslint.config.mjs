@@ -178,16 +178,4 @@ export default tseslint.config(
       'prettier/prettier': 'error',
     },
   },
-  // Test files specific configuration
-  {
-    files: ['**/*.spec.ts', '**/*.test.ts', '**/test/**/*.ts'],
-    rules: {
-      '@typescript-eslint/no-explicit-any': 'off',
-      'no-magic-numbers': 'off',
-      'max-lines-per-function': 'off',
-      '@typescript-eslint/no-unsafe-assignment': 'off',
-      '@typescript-eslint/no-unsafe-member-access': 'off',
-      '@typescript-eslint/no-unsafe-call': 'off',
-    },
-  },
 );

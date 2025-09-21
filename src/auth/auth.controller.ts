@@ -8,7 +8,9 @@ import {
   UseGuards,
 } from '@nestjs/common';
 
-import { AuthResult, AuthService, SignInData } from './auth.service';
+import { AuthService } from './auth.service';
+import { AuthResultDto } from './dto/auth-result.dto';
+import { SignInDataDto } from './dto/sign-in-data.dto';
 import { JwtGuard } from './guards/jwt.guard';
 import { LocalGuard } from './guards/local.guard';
 
@@ -19,13 +21,13 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   @Post('login')
   @UseGuards(LocalGuard)
-  login(@Request() request: { user: SignInData }): Promise<AuthResult> {
+  login(@Request() request: { user: SignInDataDto }): Promise<AuthResultDto> {
     return this.authService.signIn(request.user);
   }
 
   @UseGuards(JwtGuard)
   @Get('me')
-  getUserInfo(@Request() request: { user: SignInData }): SignInData {
+  getUserInfo(@Request() request: { user: SignInDataDto }): SignInDataDto {
     return request.user;
   }
 }
