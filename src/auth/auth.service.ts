@@ -1,11 +1,13 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
+import { plainToInstance } from 'class-transformer';
 
+import { User } from '../users/entities/user.entity';
 import { UsersService } from '../users/users.service';
 
-import { AuthInputDto } from './dto/auth-input.dto';
-import { AuthResultDto } from './dto/auth-result.dto';
-import { SignInDataDto } from './dto/sign-in-data.dto';
+import { JwtPayloadDto } from './dto/jwt-payload.dto';
+import { LoginRequestDto } from './dto/login-request.dto';
+import { LoginResponseDto } from './dto/login-response.dto';
 
 @Injectable()
 export class AuthService {
@@ -14,35 +16,32 @@ export class AuthService {
     private readonly jwtService: JwtService,
   ) {}
 
-  async authenticate(input: AuthInputDto): Promise<AuthResultDto | null> {
-    const user = await this.validateUser(input);
+  async validateUser(loginDto: LoginRequestDto): Promise<User | null> {
+    const user = await this.usersService.findByUsername(loginDto.username);
 
-    if (!user) {
-      throw new UnauthorizedException();
-    }
-
-    return this.signIn(user);
-  }
-
-  async validateUser(input: AuthInputDto): Promise<SignInDataDto | null> {
-    const user = await this.usersService.findUserByName(input.username);
-
-    if (user && user.password === input.password) {
-      return { id: user.id, username: user.username };
+    // TODO: Use bcrypt to hash and compare passwords
+    if (user && user.password === loginDto.password) {
+      return user;
     }
 
     return null;
   }
 
-  async signIn(user: SignInDataDto): Promise<AuthResultDto> {
-    const tokenPayload = { sub: user.id, username: user.username };
-
-    const accessToken = await this.jwtService.signAsync(tokenPayload);
-
-    return {
-      access_token: accessToken,
+  async login(user: User): Promise<LoginResponseDto> {
+    const payload: JwtPayloadDto = {
+      sub: user.id,
       username: user.username,
-      id: user.id,
     };
+
+    const accessToken = await this.jwtService.signAsync(payload);
+
+    return plainToInstance(
+      LoginResponseDto,
+      {
+        accessToken,
+        user,
+      },
+      { excludeExtraneousValues: true },
+    );
   }
 }

@@ -1,98 +1,330 @@
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
-</p>
+# Booksy Backend
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+A powerful bookmark management system backend built with NestJS, PostgreSQL, and JWT authentication. Booksy enables users to organize, search, and sync their bookmarks across multiple browser profiles while keeping each profile's bookmarks completely separate.
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
+## 🎯 About Booksy
 
-## Description
+Booksy is a comprehensive bookmark management platform that helps users organize and access their bookmarks efficiently. Key features include:
 
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
+### Core Features
 
-## Project setup
+- 📚 **Bookmark Management** - Create, read, update, and delete bookmarks
+- 🔍 **Advanced Search** - Search bookmarks by title, URL, tags, and folders
+- 👤 **Multi-Profile Support** - Manage separate bookmark collections for different browser profiles
+- 🔄 **Cross-Browser Sync** - Sync bookmarks across Chrome, Firefox, Edge, and more
+- 🏷️ **Tagging System** - Organize bookmarks with custom tags
+- 📁 **Folder Structure** - Hierarchical organization of bookmarks
+- 🔐 **Secure Authentication** - JWT-based user authentication
+- 🌐 **Profile Isolation** - Each browser profile maintains separate bookmarks
+
+### Technical Features
+
+- ✅ **NestJS Framework** - Progressive Node.js framework
+- ✅ **PostgreSQL** - Robust relational database
+- ✅ **TypeORM** - Advanced ORM with entities and migrations
+- ✅ **JWT Authentication** - Secure token-based authentication
+- ✅ **Environment Validation** - Type-safe environment variables
+- ✅ **Class Validation** - Request/response validation with DTOs
+- ✅ **Class Transformer** - Clean DTO serialization
+- ✅ **ESLint & Prettier** - Code quality and formatting
+- ✅ **Husky & Lint-staged** - Pre-commit hooks
+
+## Prerequisites
+
+- Node.js (v18 or higher)
+- PostgreSQL (v14 or higher)
+- npm or yarn
+
+## Installation
+
+1. **Clone the repository**
+
+   ```bash
+   git clone <repository-url>
+   cd booksy-backend
+   ```
+
+2. **Install dependencies**
+
+   ```bash
+   npm install
+   ```
+
+3. **Set up environment variables**
+
+   ```bash
+   cp .env.example .env
+   ```
+
+   Edit `.env` with your configuration:
+
+   ```env
+   NODE_ENV=local
+   PORT=3000
+
+   DB_HOST=localhost
+   DB_PORT=5432
+   DB_USERNAME=postgres
+   DB_PASSWORD=your_password
+   DB_DATABASE=booksy
+   DB_SYNC=true
+
+   JWT_SECRET=your-super-secret-key
+   JWT_EXPIRES_IN=1d
+   ```
+
+4. **Create PostgreSQL database**
+   ```bash
+   psql -U postgres
+   CREATE DATABASE booksy;
+   \q
+   ```
+
+## Running the Application
+
+### Development
 
 ```bash
-$ npm install
+npm run start:dev
 ```
 
-## Compile and run the project
+### Production
 
 ```bash
-# development
-$ npm run start
-
-# watch mode
-$ npm run start:dev
-
-# production mode
-$ npm run start:prod
+npm run build
+npm run start:prod
 ```
 
-## Run tests
+### Debug Mode
 
 ```bash
-# unit tests
-$ npm run test
-
-# e2e tests
-$ npm run test:e2e
-
-# test coverage
-$ npm run test:cov
+npm run start:debug
 ```
 
-## Deployment
+## Project Structure
 
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
+```
+src/
+├── auth/                    # Authentication module
+│   ├── dto/                # Auth DTOs (request/response)
+│   ├── guards/             # JWT and Local guards
+│   ├── strategies/         # Passport strategies
+│   ├── auth.controller.ts  # Auth endpoints
+│   ├── auth.module.ts
+│   └── auth.service.ts
+├── config/                  # Configuration files
+│   ├── database.config.ts  # TypeORM configuration
+│   └── env.validation.ts   # Environment validation schema
+├── users/                   # Users module
+│   ├── dto/                # User DTOs
+│   ├── entities/           # User entity
+│   ├── users.module.ts
+│   └── users.service.ts
+├── app.module.ts           # Root module
+└── main.ts                 # Application entry point
+```
 
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
+## API Endpoints
+
+### Authentication
+
+**POST** `/auth/login`
+
+- Login with username and password
+- Request body:
+  ```json
+  {
+    "username": "admin",
+    "password": "password"
+  }
+  ```
+- Response:
+  ```json
+  {
+    "accessToken": "jwt_token_here",
+    "user": {
+      "id": 1,
+      "username": "admin",
+      "email": "admin@example.com",
+      "createdAt": "2024-01-01T00:00:00.000Z",
+      "updatedAt": "2024-01-01T00:00:00.000Z"
+    }
+  }
+  ```
+
+**GET** `/auth/me`
+
+- Get current user profile (requires JWT token)
+- Headers: `Authorization: Bearer <token>`
+- Response:
+  ```json
+  {
+    "id": 1,
+    "username": "admin",
+    "email": "admin@example.com",
+    "createdAt": "2024-01-01T00:00:00.000Z",
+    "updatedAt": "2024-01-01T00:00:00.000Z"
+  }
+  ```
+
+## Environment Variables
+
+| Variable       | Description                                         | Default   |
+| -------------- | --------------------------------------------------- | --------- |
+| NODE_ENV       | Environment (local/staging/production)              | local     |
+| PORT           | Application port                                    | 3000      |
+| DB_HOST        | PostgreSQL host                                     | localhost |
+| DB_PORT        | PostgreSQL port                                     | 5432      |
+| DB_USERNAME    | Database username                                   | postgres  |
+| DB_PASSWORD    | Database password                                   | postgres  |
+| DB_DATABASE    | Database name                                       | booksy    |
+| DB_SYNC        | Auto-sync database schema (use false in production) | true      |
+| JWT_SECRET     | JWT signing secret                                  | -         |
+| JWT_EXPIRES_IN | JWT expiration time                                 | 1d        |
+
+## DTO Architecture
+
+### Request DTOs
+
+- Use `class-validator` decorators for validation
+- Example: `LoginRequestDto`, `CreateUserDto`
+
+### Response DTOs
+
+- Use `class-transformer` decorators (`@Expose()`, `@Exclude()`)
+- Automatically exclude sensitive fields (e.g., passwords)
+- Example: `UserResponseDto`, `LoginResponseDto`
+
+### Entity to DTO Transformation
+
+```typescript
+import { plainToInstance } from 'class-transformer';
+
+const dto = plainToInstance(UserResponseDto, user, {
+  excludeExtraneousValues: true,
+});
+```
+
+## Database
+
+### TypeORM Configuration
+
+- Entity-first approach
+- Automatic synchronization in development (set `DB_SYNC=true`)
+- Use migrations in production
+
+### User Entity
+
+Located in `src/users/entities/user.entity.ts`
+
+```typescript
+@Entity('users')
+export class User {
+  @PrimaryGeneratedColumn()
+  id: number;
+
+  @Column({ unique: true })
+  username: string;
+
+  @Column()
+  password: string;
+
+  @Column({ unique: true, nullable: true })
+  email?: string;
+
+  @CreateDateColumn()
+  createdAt: Date;
+
+  @UpdateDateColumn()
+  updatedAt: Date;
+}
+```
+
+## Security
+
+- JWT tokens for authentication
+- Password validation with `class-validator`
+- CORS enabled
+- Environment variable validation
+- Input validation on all endpoints
+- Whitelist validation (strips unknown properties)
+
+## 🚧 Roadmap
+
+### Phase 1: Core Bookmark Features (In Progress)
+
+- [ ] Implement bookmark CRUD operations
+- [ ] Add folder/collection management
+- [ ] Implement tagging system
+- [ ] Add search functionality (full-text search)
+- [ ] Create bookmark import/export
+
+### Phase 2: Multi-Profile Support
+
+- [ ] Browser profile management
+- [ ] Profile-specific bookmark storage
+- [ ] Profile switching API
+- [ ] Profile isolation enforcement
+
+### Phase 3: Sync & Collaboration
+
+- [ ] Real-time sync across devices
+- [ ] Browser extension API endpoints
+- [ ] Conflict resolution for synced bookmarks
+- [ ] Shared bookmark collections
+
+### Phase 4: Advanced Features
+
+- [ ] Bookmark metadata extraction (favicon, description)
+- [ ] Dead link detection
+- [ ] Duplicate bookmark detection
+- [ ] Bookmark analytics and insights
+- [ ] Smart folders (auto-categorization)
+
+### Phase 5: Security & Production
+
+- [ ] Implement bcrypt for password hashing
+- [ ] Add refresh token functionality
+- [ ] Implement user registration endpoint
+- [ ] Add email verification
+- [ ] Create database migrations
+- [ ] Add API documentation (Swagger/OpenAPI)
+- [ ] Implement rate limiting
+- [ ] Add comprehensive error handling
+- [ ] Write unit and e2e tests
+- [ ] Add logging service (Winston/Pino)
+
+## 🎨 Use Cases
+
+- **Developers:** Organize technical resources, documentation, and code examples
+- **Researchers:** Manage research papers, articles, and reference materials
+- **Professionals:** Keep work and personal bookmarks separate with different profiles
+- **Multi-Device Users:** Access bookmarks across all devices seamlessly
+- **Privacy-Conscious Users:** Maintain isolated bookmark collections for different contexts
+
+## 📖 Documentation
+
+All development guidelines, patterns, and best practices are available in the `.cursor/` directory as Cursor Rules:
+
+- **[booksy-development-rules.mdc](./.cursor/booksy-development-rules.mdc)** - Complete development guidelines with DTO patterns and best practices
+- **[SETUP_GUIDE.md](./SETUP_GUIDE.md)** - Detailed setup instructions
+
+The MDC file is automatically loaded by Cursor AI and provides context-aware assistance.
+
+## 🛠️ Scripts
 
 ```bash
-$ npm install -g @nestjs/mau
-$ mau deploy
+npm run build          # Build the project
+npm run start          # Start production server
+npm run start:dev      # Start development server with watch
+npm run start:debug    # Start with debugger
+npm run lint           # Run ESLint
+npm run lint:fix       # Fix ESLint issues
+npm run format         # Format code with Prettier
+npm run format:check   # Check code formatting
+npm run type-check     # Check TypeScript types
 ```
 
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
+## 🤝 Contributing
 
-## Resources
-
-Check out a few resources that may come in handy when working with NestJS:
-
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
-
-## Support
-
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
-
-## Stay in touch
-
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
-
-## License
-
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+Contributions are welcome! Please fork this repo and raise a PR against main branch.

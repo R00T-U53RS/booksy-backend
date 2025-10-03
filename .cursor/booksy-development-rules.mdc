@@ -1,0 +1,924 @@
+---
+alwaysApply: true
+---
+# Booksy Development Rules & Guidelines
+
+Complete reference for developing the Booksy bookmark management backend with NestJS, PostgreSQL, and TypeORM.
+
+## 📋 Table of Contents
+
+- [Project Setup](#project-setup)
+- [Environment Configuration](#environment-configuration)
+- [Database Guidelines](#database-guidelines)
+- [DTO Architecture](#dto-architecture)
+- [Code Quality Standards](#code-quality-standards)
+- [Security Guidelines](#security-guidelines)
+- [Development Workflow](#development-workflow)
+- [Common Patterns](#common-patterns)
+- [Troubleshooting](#troubleshooting)
+
+---
+
+## Project Setup
+
+### Prerequisites
+
+- Node.js v18+
+- PostgreSQL v14+
+- npm or yarn
+
+### Initial Setup
+
+```bash
+# 1. Install dependencies
+npm install
+
+# 2. Create .env file from example
+cp .env.example .env
+# Edit .env with your credentials
+
+# 3. Create PostgreSQL database
+psql -U postgres -c "CREATE DATABASE booksy;"
+
+# 4. Start development server
+npm run start:dev
+```
+
+---
+
+## Environment Configuration
+
+### Required Variables
+
+All environment variables are defined in `.env.example` and validated on startup.
+
+```env
+# Application
+NODE_ENV=development|production|test
+PORT=3000
+
+# Database
+DB_HOST=localhost
+DB_PORT=5432
+DB_USERNAME=postgres
+DB_PASSWORD=<your-password>
+DB_DATABASE=booksy
+DB_SYNC=true  # false in production
+
+# Authentication
+JWT_SECRET=<strong-secret-32-chars-minimum>
+JWT_EXPIRES_IN=1d
+```
+
+### Validation Rules
+
+- All environment variables MUST be validated on startup
+- Use `class-validator` for type checking
+- Located in: `src/config/env.validation.ts`
+- Application fails fast if validation fails
+
+### Configuration Access
+
+```typescript
+// ✅ CORRECT: Use ConfigService
+constructor(private configService: ConfigService) {
+  const secret = this.configService.get<string>('JWT_SECRET');
+}
+
+// ❌ WRONG: Direct process.env access
+const secret = process.env.JWT_SECRET;
+```
+
+---
+
+## Database Guidelines
+
+### TypeORM Configuration
+
+- Use async configuration with `ConfigService`
+- Entity-first approach
+- Enable `synchronize` ONLY in development
+- Enable logging in development
+- Configuration in: `src/config/database.config.ts`
+
+### Entity Rules
+
+**MUST:**
+
+- Use TypeORM decorators
+- Include `@PrimaryGeneratedColumn()` for IDs
+- Add `@CreateDateColumn()` and `@UpdateDateColumn()`
+- Use descriptive table names with `@Entity('table_name')`
+- Add indexes for frequently queried fields
+- Use snake_case for column names
+
+**Example:**
+
+```typescript
+@Entity('bookmarks')
+export class Bookmark {
+  @PrimaryGeneratedColumn()
+  id: number;
+
+  @Column({ length: 500 })
+  url: string;
+
+  @Column({ length: 255 })
+  title: string;
+
+  @Column({ type: 'text', nullable: true })
+  description?: string;
+
+  @ManyToOne(() => User, user => user.bookmarks)
+  user: User;
+
+  @ManyToOne(() => Profile, profile => profile.bookmarks)
+  profile: Profile;
+
+  @CreateDateColumn({ name: 'created_at' })
+  createdAt: Date;
+
+  @UpdateDateColumn({ name: 'updated_at' })
+  updatedAt: Date;
+}
+```
+
+### Repository Pattern
+
+**MUST:**
+
+- Inject repositories using `@InjectRepository(Entity)`
+- Use TypeORM methods (no raw SQL unless necessary)
+- Return `Promise<Entity | null>` for find operations
+- Handle errors appropriately
+
+```typescript
+@Injectable()
+export class BookmarksService {
+  constructor(
+    @InjectRepository(Bookmark)
+    private readonly bookmarkRepository: Repository<Bookmark>,
+  ) {}
+
+  findById(id: number): Promise<Bookmark | null> {
+    return this.bookmarkRepository.findOne({ where: { id } });
+  }
+
+  async search(query: string, userId: number): Promise<Bookmark[]> {
+    return this.bookmarkRepository
+      .createQueryBuilder('bookmark')
+      .where('bookmark.userId = :userId', { userId })
+      .andWhere('(bookmark.title ILIKE :query OR bookmark.url ILIKE :query)', {
+        query: `%${query}%`,
+      })
+      .getMany();
+  }
+}
+```
+
+---
+
+## DTO Architecture
+
+### 🎯 Purpose of DTOs
+
+1. **Request Validation** - Validate incoming data from clients
+2. **Response Serialization** - Control what data is sent to clients
+3. **Type Safety** - Provide TypeScript type checking
+
+### Request DTOs (Validation)
+
+**Purpose:** Validate incoming data
+
+**Rules:**
+
+- Use `class-validator` decorators
+- Located in `module/dto/`
+- Named: `action-entity.dto.ts` (e.g., `create-bookmark.dto.ts`)
+- All fields must have validation decorators
+- Never expose database internals
+
+**Example:**
+
+```typescript
+export class CreateBookmarkDto {
+  @IsUrl()
+  @IsNotEmpty()
+  url: string;
+
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(255)
+  title: string;
+
+  @IsString()
+  @IsOptional()
+  description?: string;
+
+  @IsArray()
+  @IsString({ each: true })
+  @IsOptional()
+  tags?: string[];
+
+  @IsNumber()
+  @IsOptional()
+  folderId?: number;
+}
+```
+
+### Response DTOs (Serialization)
+
+**Purpose:** Control data sent to clients
+
+**Rules:**
+
+- Use `class-transformer` decorators
+- MUST use `@Exclude()` at class level
+- MUST use `@Expose()` on allowed fields
+- Named: `entity-response.dto.ts`
+- Never expose sensitive data (passwords, tokens)
+- Use `@Type()` for nested objects
+
+**Example:**
+
+```typescript
+@Exclude()
+export class BookmarkResponseDto {
+  @Expose()
+  id: number;
+
+  @Expose()
+  url: string;
+
+  @Expose()
+  title: string;
+
+  @Expose()
+  description?: string;
+
+  @Expose()
+  tags: string[];
+
+  @Expose()
+  @Type(() => FolderResponseDto)
+  folder?: FolderResponseDto;
+
+  @Expose()
+  createdAt: Date;
+
+  @Expose()
+  updatedAt: Date;
+
+  // Sensitive fields automatically excluded
+}
+```
+
+### DTO Transformation
+
+**ALWAYS use `plainToInstance`:**
+
+```typescript
+import { plainToInstance } from 'class-transformer';
+
+return plainToInstance(BookmarkResponseDto, bookmark, {
+  excludeExtraneousValues: true,
+});
+```
+
+### Common Validators
+
+```typescript
+// Strings
+@IsString()
+@IsNotEmpty()
+@MinLength(3)
+@MaxLength(255)
+@IsOptional()
+
+// Numbers
+@IsNumber()
+@IsInt()
+@Min(0)
+@Max(100)
+@IsPositive()
+
+// URLs and Emails
+@IsEmail()
+@IsUrl()
+
+// Others
+@IsBoolean()
+@IsDate()
+@IsEnum(MyEnum)
+@IsArray()
+@ArrayMinSize(1)
+@ValidateNested()
+@Type(() => MyClass)
+```
+
+### Global Validation Setup
+
+Configured in `main.ts`:
+
+```typescript
+app.useGlobalPipes(
+  new ValidationPipe({
+    whitelist: true, // Strip props not in DTO
+    forbidNonWhitelisted: true, // Throw error on unknown props
+    transform: true, // Auto-transform to DTO types
+    transformOptions: {
+      enableImplicitConversion: true, // Convert types automatically
+    },
+  }),
+);
+```
+
+### Common DTO Pitfalls
+
+❌ **Forgetting @Exclude() on Response DTOs:**
+
+```typescript
+// BAD: password will be included
+export class UserResponseDto {
+  @Expose() id: number;
+  @Expose() username: string;
+}
+```
+
+✅ **Correct:**
+
+```typescript
+@Exclude()
+export class UserResponseDto {
+  @Expose() id: number;
+  @Expose() username: string;
+  // password excluded
+}
+```
+
+❌ **Not using plainToInstance:**
+
+```typescript
+return user; // Returns entity with password!
+```
+
+✅ **Correct:**
+
+```typescript
+return plainToInstance(UserResponseDto, user, {
+  excludeExtraneousValues: true,
+});
+```
+
+---
+
+## Code Quality Standards
+
+### TypeScript
+
+- Strict mode MUST be enabled
+- No `any` types (use `unknown` if needed)
+- All functions must have return types
+- Use interfaces for complex types
+- Use `type` imports when importing only types
+
+```typescript
+import type { ConfigService } from '@nestjs/config';
+import type { TypeOrmModuleOptions } from '@nestjs/typeorm';
+```
+
+### Linting
+
+**Before every commit:**
+
+```bash
+npm run lint:fix
+npm run format
+npm run type-check
+```
+
+**Rules:**
+
+- ESLint errors: MUST fix
+- ESLint warnings: Should fix
+- Prettier: Auto-format on save
+- Import order: Enforced by ESLint
+
+### File Organization
+
+```
+module/
+├── dto/
+│   ├── create-entity.dto.ts
+│   ├── update-entity.dto.ts
+│   └── entity-response.dto.ts
+├── entities/
+│   └── entity.entity.ts
+├── guards/ (optional)
+│   └── entity.guard.ts
+├── module.controller.ts
+├── module.module.ts
+└── module.service.ts
+```
+
+### Naming Conventions
+
+- **Controllers:** `feature.controller.ts`
+- **Services:** `feature.service.ts`
+- **Modules:** `feature.module.ts`
+- **DTOs:** `action-purpose.dto.ts`
+- **Entities:** `entity.entity.ts`
+- **Guards:** `name.guard.ts`
+- **Strategies:** `name.strategy.ts`
+
+### Import Order
+
+1. External packages (`@nestjs/`, third-party)
+2. Type imports
+3. Entities
+4. DTOs
+5. Local services/controllers
+6. Guards/strategies
+
+---
+
+## Security Guidelines
+
+### Authentication
+
+- JWT tokens for all authenticated endpoints
+- Token expiration MUST be configured
+- Use guards for protected routes: `@UseGuards(JwtGuard)`
+- Never log tokens or passwords
+- Include minimal data in JWT payload
+
+### Password Handling
+
+**CRITICAL:**
+
+- Passwords MUST be hashed (implement bcrypt - TODO)
+- Never return passwords in responses
+- Use `@Exclude()` on password fields
+- Minimum length: 6 characters (increase to 8+ in production)
+
+### Input Validation
+
+**MUST:**
+
+- Validate ALL incoming data
+- Use global `ValidationPipe`
+- Whitelist: Strip unknown properties
+- Transform: Auto-convert types
+- Sanitize user inputs for XSS
+
+### CORS
+
+- Enable CORS in `main.ts`
+- Configure allowed origins in production
+- Use credentials when needed
+
+### Environment Secrets
+
+- Never commit `.env` files (only `.env.example`)
+- Use strong JWT secrets (32+ chars)
+- Change default passwords
+- Use environment-specific configs
+- Rotate secrets regularly
+
+---
+
+## Development Workflow
+
+### Starting Development
+
+```bash
+# 1. Pull latest changes
+git pull
+
+# 2. Install dependencies (if package.json changed)
+npm install
+
+# 3. Start dev server (hot reload enabled)
+npm run start:dev
+```
+
+### Adding a Feature
+
+1. **Plan the feature:**
+   - Define entities and relationships
+   - Design DTOs (request/response)
+   - Plan API routes
+
+2. **Generate module:**
+
+   ```bash
+   nest g module feature
+   nest g controller feature
+   nest g service feature
+   ```
+
+3. **Create entity:**
+
+   ```typescript
+   // feature/entities/feature.entity.ts
+   ```
+
+4. **Create DTOs:**
+   - Request DTOs for validation
+   - Response DTOs for serialization
+
+5. **Implement service logic**
+
+6. **Add controller endpoints**
+
+7. **Apply guards if needed**
+
+8. **Test the feature**
+
+### Module Dependencies
+
+```typescript
+// feature.module.ts
+@Module({
+  imports: [
+    TypeOrmModule.forFeature([Entity]), // Register entity
+    OtherModule, // Import dependencies
+  ],
+  controllers: [FeatureController],
+  providers: [FeatureService],
+  exports: [FeatureService], // Export if used by other modules
+})
+```
+
+### Git Workflow
+
+```bash
+# 1. Create feature branch
+git checkout -b feature/bookmark-management
+
+# 2. Make changes and commit
+git add .
+git commit -m "feat: add bookmark CRUD operations"
+
+# 3. Pre-commit hooks run automatically
+# - ESLint
+# - Prettier
+# - Type checking
+
+# 4. Push changes
+git push origin feature/bookmark-management
+
+# 5. Create PR to main branch
+```
+
+### Code Review Checklist
+
+- [ ] TypeScript compiles without errors
+- [ ] ESLint passes (no errors)
+- [ ] All imports are ordered correctly
+- [ ] DTOs have proper validation
+- [ ] Response DTOs exclude sensitive data
+- [ ] Guards applied to protected routes
+- [ ] Error handling implemented
+- [ ] No console.logs (use logging service)
+- [ ] Tests written (when applicable)
+
+---
+
+## Common Patterns
+
+### Controller Pattern
+
+```typescript
+@Controller('bookmarks')
+export class BookmarksController {
+  constructor(private readonly bookmarksService: BookmarksService) {}
+
+  @Post()
+  @UseGuards(JwtGuard)
+  create(
+    @Body() dto: CreateBookmarkDto,
+    @Request() req,
+  ): Promise<BookmarkResponseDto> {
+    return this.bookmarksService.create(dto, req.user.id);
+  }
+
+  @Get(':id')
+  @UseGuards(JwtGuard)
+  findOne(@Param('id') id: number): Promise<BookmarkResponseDto> {
+    return this.bookmarksService.findOne(id);
+  }
+
+  @Get()
+  @UseGuards(JwtGuard)
+  findAll(@Request() req): Promise<BookmarkResponseDto[]> {
+    return this.bookmarksService.findAllByUser(req.user.id);
+  }
+
+  @Patch(':id')
+  @UseGuards(JwtGuard)
+  update(
+    @Param('id') id: number,
+    @Body() dto: UpdateBookmarkDto,
+    @Request() req,
+  ): Promise<BookmarkResponseDto> {
+    return this.bookmarksService.update(id, dto, req.user.id);
+  }
+
+  @Delete(':id')
+  @UseGuards(JwtGuard)
+  @HttpCode(HttpStatus.NO_CONTENT)
+  remove(@Param('id') id: number, @Request() req): Promise<void> {
+    return this.bookmarksService.remove(id, req.user.id);
+  }
+}
+```
+
+### Service Pattern
+
+```typescript
+@Injectable()
+export class BookmarksService {
+  constructor(
+    @InjectRepository(Bookmark)
+    private readonly bookmarkRepository: Repository<Bookmark>,
+  ) {}
+
+  async create(
+    dto: CreateBookmarkDto,
+    userId: number,
+  ): Promise<BookmarkResponseDto> {
+    const bookmark = this.bookmarkRepository.create({
+      ...dto,
+      userId,
+    });
+
+    const saved = await this.bookmarkRepository.save(bookmark);
+
+    return plainToInstance(BookmarkResponseDto, saved, {
+      excludeExtraneousValues: true,
+    });
+  }
+
+  async findOne(id: number): Promise<BookmarkResponseDto> {
+    const bookmark = await this.bookmarkRepository.findOne({
+      where: { id },
+      relations: ['folder', 'profile'],
+    });
+
+    if (!bookmark) {
+      throw new NotFoundException(`Bookmark with ID ${id} not found`);
+    }
+
+    return plainToInstance(BookmarkResponseDto, bookmark, {
+      excludeExtraneousValues: true,
+    });
+  }
+}
+```
+
+### Guard Pattern
+
+```typescript
+@UseGuards(JwtGuard)
+@Get('protected')
+protectedRoute(@Request() req) {
+  // req.user contains authenticated user
+  return { user: req.user };
+}
+```
+
+---
+
+## Module-Specific Guidelines
+
+### Authentication Module
+
+- Use Passport strategies (Local & JWT)
+- Implement both strategies
+- Use guards: `@UseGuards(JwtGuard)`, `@UseGuards(LocalGuard)`
+- Return structured login responses
+- Include user data in JWT payload (id, username only)
+
+### Users Module
+
+- Export `UsersService` for use by auth
+- Never expose password field
+- Use unique constraints on username/email
+- Implement proper user validation
+
+### Bookmarks Module (To Implement)
+
+**Core Requirements:**
+
+- Associate bookmarks with users and profiles
+- Implement full-text search functionality
+- Add tags/categories support
+- Support multiple browser profiles (Chrome, Firefox, Edge, etc.)
+- Implement hierarchical folder structure
+- Add bookmark sharing capabilities
+- Metadata extraction (favicon, description)
+- Import/export functionality
+- Duplicate detection
+- Dead link checking
+
+**Profile Isolation:**
+
+- Each browser profile has separate bookmarks
+- Profile switching should be seamless
+- No data leakage between profiles
+- Profile-specific settings and preferences
+
+---
+
+## Best Practices Summary
+
+### ✅ DO
+
+- Use dependency injection
+- Use DTOs for all inputs/outputs
+- Validate all incoming data
+- Use ConfigService for environment variables
+- Use repository pattern for database access
+- Apply guards to protected routes
+- Transform responses with `plainToInstance`
+- Log errors appropriately
+- Write meaningful commit messages
+- Keep services thin and focused
+- Use TypeScript types everywhere
+- Use type imports for type-only imports
+
+### ❌ DON'T
+
+- Access `process.env` directly
+- Return entities directly (use DTOs)
+- Use `any` type
+- Hardcode configuration values
+- Expose sensitive data in responses
+- Skip validation on endpoints
+- Use raw SQL without good reason
+- Commit `.env` files
+- Disable linting rules without reason
+- Write long, complex functions
+- Skip error handling
+
+---
+
+## Troubleshooting
+
+### Database Issues
+
+**Problem:** Cannot connect to database
+
+**Solutions:**
+
+- Check PostgreSQL is running: `pg_isready`
+- Verify credentials in `.env`
+- Ensure database exists: `psql -U postgres -l`
+- Check firewall rules
+- Verify DB_PORT matches PostgreSQL port
+
+### Build Issues
+
+**Problem:** TypeScript errors
+
+**Solutions:**
+
+- Run `npm run type-check`
+- Check for missing imports
+- Verify types are correct
+- Clear `dist/` and rebuild: `rm -rf dist && npm run build`
+
+### Validation Issues
+
+**Problem:** DTOs not validating
+
+**Solutions:**
+
+- Check `ValidationPipe` is registered in `main.ts`
+- Verify decorators are imported from `class-validator`
+- Ensure `class-transformer` is installed
+- Check DTO has proper decorators
+- Verify DTO is used in controller
+
+### Import Errors
+
+**Problem:** Module not found
+
+**Solutions:**
+
+- Run `npm install`
+- Check import paths are correct
+- Verify module is registered in parent module
+- Clear node_modules and reinstall
+
+---
+
+## Production Checklist
+
+Before deploying to production:
+
+- [ ] Change `DB_SYNC=false`
+- [ ] Implement database migrations
+- [ ] Implement password hashing (bcrypt)
+- [ ] Use strong JWT secret (32+ chars)
+- [ ] Configure CORS for specific origins
+- [ ] Enable HTTPS
+- [ ] Add rate limiting
+- [ ] Implement proper logging (Winston/Pino)
+- [ ] Set up monitoring (Prometheus, Grafana)
+- [ ] Configure error tracking (Sentry)
+- [ ] Enable compression
+- [ ] Set up database backups
+- [ ] Use connection pooling
+- [ ] Implement health checks
+- [ ] Add API documentation (Swagger)
+- [ ] Write comprehensive tests
+- [ ] Set up CI/CD pipeline
+- [ ] Configure environment variables properly
+- [ ] Review security headers
+- [ ] Enable SQL query logging (temporarily for debugging)
+
+---
+
+## Quick Reference
+
+### Essential Commands
+
+```bash
+npm run start:dev       # Development with hot reload
+npm run build           # Build for production
+npm run start:prod      # Run production build
+npm run lint:fix        # Fix linting issues
+npm run format          # Format code
+npm run type-check      # Check TypeScript types
+npm run lint:check      # Check linting (no fix)
+```
+
+### Generate Commands
+
+```bash
+nest g module feature       # Generate module
+nest g controller feature   # Generate controller
+nest g service feature      # Generate service
+nest g class feature/dto/create-feature.dto --no-spec
+nest g guard feature/guards/feature  # Generate guard
+```
+
+### Key Files
+
+- `src/main.ts` - Application entry, global config
+- `src/app.module.ts` - Root module
+- `src/config/env.validation.ts` - Environment validation
+- `src/config/database.config.ts` - Database configuration
+- `.env` - Environment variables (never commit!)
+- `.env.example` - Environment template (tracked in git)
+
+### Custom Validators Example
+
+```typescript
+import { registerDecorator, ValidationOptions } from 'class-validator';
+
+export function IsStrongPassword(validationOptions?: ValidationOptions) {
+  return function (object: object, propertyName: string) {
+    registerDecorator({
+      name: 'isStrongPassword',
+      target: object.constructor,
+      propertyName: propertyName,
+      options: validationOptions,
+      validator: {
+        validate(value: any) {
+          return (
+            typeof value === 'string' &&
+            /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/.test(
+              value,
+            )
+          );
+        },
+        defaultMessage() {
+          return 'Password must be at least 8 characters with uppercase, lowercase, number, and special character';
+        },
+      },
+    });
+  };
+}
+```
+
+---
+
+## Resources
+
+- [NestJS Documentation](https://docs.nestjs.com/)
+- [TypeORM Documentation](https://typeorm.io/)
+- [class-validator](https://github.com/typestack/class-validator)
+- [class-transformer](https://github.com/typestack/class-transformer)
+- [PostgreSQL Documentation](https://www.postgresql.org/docs/)
+- [Passport JWT](http://www.passportjs.org/packages/passport-jwt/)
+
+---
+
+**Last Updated:** October 3, 2025  
+**Version:** 1.0.0  
+**Project:** Booksy - Bookmark Management System
+
+For questions or clarifications, refer to the NestJS documentation or review the existing codebase for examples.
