@@ -7,8 +7,13 @@ import {
   Request,
   UseGuards,
 } from '@nestjs/common';
+import { plainToInstance } from 'class-transformer';
 
-import { AuthResult, AuthService, SignInData } from './auth.service';
+import { UserResponseDto } from '../users/dto/user-response.dto';
+import { User } from '../users/entities/user.entity';
+
+import { AuthService } from './auth.service';
+import { LoginResponseDto } from './dto/login-response.dto';
 import { JwtGuard } from './guards/jwt.guard';
 import { LocalGuard } from './guards/local.guard';
 
@@ -19,13 +24,15 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   @Post('login')
   @UseGuards(LocalGuard)
-  login(@Request() request: { user: SignInData }): Promise<AuthResult> {
-    return this.authService.signIn(request.user);
+  login(@Request() request: { user: User }): Promise<LoginResponseDto> {
+    return this.authService.login(request.user);
   }
 
   @UseGuards(JwtGuard)
   @Get('me')
-  getUserInfo(@Request() request: { user: SignInData }): SignInData {
-    return request.user;
+  getProfile(@Request() request: { user: User }): UserResponseDto {
+    return plainToInstance(UserResponseDto, request.user, {
+      excludeExtraneousValues: true,
+    });
   }
 }
