@@ -1,0 +1,26 @@
+version: '1'
+name: booksy-db
+services:
+  db:
+    container_name: postgres
+    image: postgres
+    restart: always
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    ports:
+      - 5432:5432
+
+    environment:
+      POSTGRES_DB: booksyDB
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+
+  adminer:
+    container_name: adminer
+    image: adminer
+    restart: always
+    ports:
+      - 8080:8080
+
+volumes:
+  db_data:
