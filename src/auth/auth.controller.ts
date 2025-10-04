@@ -1,4 +1,5 @@
 import {
+  Body,
   Controller,
   Get,
   HttpCode,
@@ -14,12 +15,22 @@ import { User } from '../users/entities/user.entity';
 
 import { AuthService } from './auth.service';
 import { LoginResponseDto } from './dto/login-response.dto';
+import { RegisterRequestDto } from './dto/register-request.dto';
+import { RegisterResponseDto } from './dto/register-response.dto';
 import { JwtGuard } from './guards/jwt.guard';
 import { LocalGuard } from './guards/local.guard';
 
 @Controller('auth')
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
+
+  @HttpCode(HttpStatus.CREATED)
+  @Post('register')
+  register(
+    @Body() registerDto: RegisterRequestDto,
+  ): Promise<RegisterResponseDto> {
+    return this.authService.register(registerDto);
+  }
 
   @HttpCode(HttpStatus.OK)
   @Post('login')

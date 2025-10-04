@@ -3,13 +3,13 @@ import { Exclude, Expose } from 'class-transformer';
 @Exclude()
 export class UserResponseDto {
   @Expose()
-  id: number;
+  id: string;
 
   @Expose()
   username: string;
 
   @Expose()
-  email?: string;
+  email: string;
 
   @Expose()
   createdAt: Date;

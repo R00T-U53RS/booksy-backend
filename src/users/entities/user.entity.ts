@@ -8,8 +8,8 @@ import {
 
 @Entity('users')
 export class User {
-  @PrimaryGeneratedColumn()
-  id: number;
+  @PrimaryGeneratedColumn('uuid')
+  id: string;
 
   @Column({ unique: true, length: 100 })
   username: string;
@@ -17,8 +17,8 @@ export class User {
   @Column({ length: 255 })
   password: string;
 
-  @Column({ unique: true, length: 255, nullable: true })
-  email?: string;
+  @Column({ unique: true, length: 255 })
+  email: string;
 
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;
