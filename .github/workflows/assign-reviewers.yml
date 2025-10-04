@@ -20,6 +20,13 @@ jobs:
         run: |
           echo "REVIEWERS=Z3RO-O" >> $GITHUB_ENV
 
+      - name: Set Reviewers for Other Users
+        if: |
+          github.event.pull_request.user.login != 'Z3RO-O' &&
+          github.event.pull_request.user.login != 'Koruto'
+        run: |
+          echo "REVIEWERS=Z3RO-O,Koruto" >> $GITHUB_ENV
+
       # Assign Reviewers
       - name: Assign Reviewers
         uses: hkusu/review-assign-action@v1.4.0
