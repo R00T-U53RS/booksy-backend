@@ -6,11 +6,10 @@ import { plainToInstance } from 'class-transformer';
 import { User } from '../users/entities/user.entity';
 import { UsersService } from '../users/users.service';
 
+import { AuthResponseDto } from './dto/auth-response.dto';
 import { JwtPayloadDto } from './dto/jwt-payload.dto';
 import { LoginRequestDto } from './dto/login-request.dto';
-import { LoginResponseDto } from './dto/login-response.dto';
 import { RegisterRequestDto } from './dto/register-request.dto';
-import { RegisterResponseDto } from './dto/register-response.dto';
 
 @Injectable()
 export class AuthService {
@@ -29,9 +28,7 @@ export class AuthService {
     return null;
   }
 
-  async register(
-    registerDto: RegisterRequestDto,
-  ): Promise<RegisterResponseDto> {
+  async register(registerDto: RegisterRequestDto): Promise<AuthResponseDto> {
     // Check if username or email already exists
     const existingUserByUsername = await this.usersService.findByUsername(
       registerDto.username,
@@ -57,33 +54,23 @@ export class AuthService {
       password: hashedPassword,
     });
 
-    return plainToInstance(
-      RegisterResponseDto,
-      {
-        message: 'User registered successfully',
-        user,
-      },
-      { excludeExtraneousValues: true },
-    );
+    return this.login(user);
   }
 
-  async login(user: User): Promise<LoginResponseDto> {
+  async login(user: User): Promise<AuthResponseDto> {
     const payload: JwtPayloadDto = {
       sub: user.id,
       username: user.username,
       email: user.email,
       createdAt: user.createdAt,
+      updatedAt: user.updatedAt,
     };
 
     const accessToken = await this.jwtService.signAsync(payload);
 
-    return plainToInstance(
-      LoginResponseDto,
-      {
-        accessToken,
-        user,
-      },
-      { excludeExtraneousValues: true },
-    );
+    return plainToInstance(AuthResponseDto, {
+      accessToken,
+      user,
+    });
   }
 }
