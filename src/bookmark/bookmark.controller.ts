@@ -4,6 +4,8 @@ import {
   Get,
   HttpCode,
   HttpStatus,
+  Param,
+  Patch,
   Post,
   Query,
   Request,
@@ -19,6 +21,8 @@ import { CreateBookmarkDto } from './dto/create-request.dto';
 import { BookmarkResponseDto } from './dto/create-response.dto';
 import { ReadBookmarkRequestDto } from './dto/read-request.dto';
 import { ReadBookmarkResponseDto } from './dto/read-response.dto';
+import { UpdateBookmarkDto } from './dto/update-request.dto';
+import { UpdateBookmarkResponseDto } from './dto/update-response.dto';
 
 @Controller('bookmarks')
 export class BookmarkController {
@@ -53,5 +57,15 @@ export class BookmarkController {
     return plainToInstance(ReadBookmarkResponseDto, bookmarks, {
       excludeExtraneousValues: true,
     });
+  }
+
+  @UseGuards(JwtGuard)
+  @Patch(':id')
+  update(
+    @Param('id') id: string,
+    @Body() updateBookmarkDto: UpdateBookmarkDto,
+    @Request() request: { user: User },
+  ): Promise<UpdateBookmarkResponseDto> {
+    return this.bookmarkService.update(id, updateBookmarkDto, request.user);
   }
 }
