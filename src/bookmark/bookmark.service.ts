@@ -5,6 +5,7 @@ import { Repository } from 'typeorm';
 import { User } from '../users/entities/user.entity';
 
 import { CreateBookmarkDto } from './dto/create-request.dto';
+import { DeleteBookmarkResponseDto } from './dto/delete-response.dto';
 import { ReadBookmarkRequestDto } from './dto/read-request.dto';
 import { UpdateBookmarkDto } from './dto/update-request.dto';
 import { UpdateBookmarkResponseDto } from './dto/update-response.dto';
@@ -77,6 +78,12 @@ export class BookmarkService {
       ...updateBookmarkDto,
       tags: updateBookmarkDto.tags?.join(','),
     });
+
+    return { id };
+  }
+
+  async delete(id: string, user: User): Promise<DeleteBookmarkResponseDto> {
+    await this.bookmarkRepository.delete({ id, user });
 
     return { id };
   }
