@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   HttpCode,
   HttpStatus,
@@ -19,6 +20,7 @@ import { User } from '../users/entities/user.entity';
 import { BookmarkService } from './bookmark.service';
 import { CreateBookmarkDto } from './dto/create-request.dto';
 import { BookmarkResponseDto } from './dto/create-response.dto';
+import { DeleteBookmarkResponseDto } from './dto/delete-response.dto';
 import { ReadBookmarkRequestDto } from './dto/read-request.dto';
 import { ReadBookmarkResponseDto } from './dto/read-response.dto';
 import { UpdateBookmarkDto } from './dto/update-request.dto';
@@ -67,5 +69,14 @@ export class BookmarkController {
     @Request() request: { user: User },
   ): Promise<UpdateBookmarkResponseDto> {
     return this.bookmarkService.update(id, updateBookmarkDto, request.user);
+  }
+
+  @UseGuards(JwtGuard)
+  @Delete(':id')
+  delete(
+    @Param('id') id: string,
+    @Request() request: { user: User },
+  ): Promise<DeleteBookmarkResponseDto> {
+    return this.bookmarkService.delete(id, request.user);
   }
 }
