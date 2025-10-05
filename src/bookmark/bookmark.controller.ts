@@ -32,8 +32,6 @@ export class BookmarkController {
       request.user,
     );
 
-    return plainToInstance(BookmarkResponseDto, bookmark, {
-      excludeExtraneousValues: true,
-    });
+    return plainToInstance(BookmarkResponseDto, bookmark);
   }
 }

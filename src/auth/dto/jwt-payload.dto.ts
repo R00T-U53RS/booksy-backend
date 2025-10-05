@@ -3,4 +3,5 @@ export class JwtPayloadDto {
   username: string;
   email: string;
   createdAt: Date;
+  updatedAt: Date;
 }
