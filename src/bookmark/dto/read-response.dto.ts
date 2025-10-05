@@ -1,7 +1,7 @@
 import { Exclude, Expose } from 'class-transformer';
 
 @Exclude()
-export class BookmarkResponseDto {
+export class ReadBookmarkResponseDto {
   @Expose()
   id: string;
 
@@ -12,8 +12,17 @@ export class BookmarkResponseDto {
   url: string;
 
   @Expose()
+  source: string;
+
+  @Expose()
+  tags?: string;
+
+  @Expose()
   description?: string;
 
   @Expose()
   createdAt: Date;
+
+  @Expose()
+  updatedAt: Date;
 }

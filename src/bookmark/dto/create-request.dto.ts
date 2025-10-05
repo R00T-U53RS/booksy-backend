@@ -12,4 +12,12 @@ export class CreateBookmarkDto {
   @IsString()
   @IsOptional()
   description?: string;
+
+  @IsString()
+  @IsNotEmpty()
+  source: string;
+
+  @IsString()
+  @IsOptional()
+  tags?: string;
 }
