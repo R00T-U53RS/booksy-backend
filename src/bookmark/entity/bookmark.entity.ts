@@ -20,6 +20,12 @@ export class Bookmark {
   @Column()
   url: string;
 
+  @Column()
+  source: string;
+
+  @Column({ nullable: true })
+  tags?: string;
+
   @Column({ nullable: true })
   description?: string;
 
