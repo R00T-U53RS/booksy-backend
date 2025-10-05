@@ -14,7 +14,7 @@ jobs:
         run: |
           echo "REVIEWERS=Koruto" >> $GITHUB_ENV
 
-      - name: Set Reviewers for Hemant
+      - name: Set Reviewers for Koruto
         if: |
           github.event.pull_request.user.login == 'Koruto'
         run: |
