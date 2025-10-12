@@ -23,6 +23,7 @@ import { BookmarkResponseDto } from './dto/create-response.dto';
 import { DeleteBookmarkResponseDto } from './dto/delete-response.dto';
 import { ReadBookmarkRequestDto } from './dto/read-request.dto';
 import { ReadBookmarkResponseDto } from './dto/read-response.dto';
+import { RefreshMetadataResponseDto } from './dto/refresh-metadata-response.dto';
 import { UpdateBookmarkDto } from './dto/update-request.dto';
 import { UpdateBookmarkResponseDto } from './dto/update-response.dto';
 
@@ -78,5 +79,15 @@ export class BookmarkController {
     @Request() request: { user: User },
   ): Promise<DeleteBookmarkResponseDto> {
     return this.bookmarkService.delete(id, request.user);
+  }
+
+  @UseGuards(JwtGuard)
+  @Post(':id/refresh-metadata')
+  @HttpCode(HttpStatus.OK)
+  refreshMetadata(
+    @Param('id') id: string,
+    @Request() request: { user: User },
+  ): Promise<RefreshMetadataResponseDto> {
+    return this.bookmarkService.refreshMetadata(id, request.user);
   }
 }

@@ -29,6 +29,9 @@ export class Bookmark {
   @Column({ nullable: true })
   description?: string;
 
+  @Column({ type: 'json', nullable: true })
+  metadata?: Record<string, unknown>;
+
   @CreateDateColumn()
   createdAt: Date;
 

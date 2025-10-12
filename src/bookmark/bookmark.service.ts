@@ -7,24 +7,63 @@ import { User } from '../users/entities/user.entity';
 import { CreateBookmarkDto } from './dto/create-request.dto';
 import { DeleteBookmarkResponseDto } from './dto/delete-response.dto';
 import { ReadBookmarkRequestDto } from './dto/read-request.dto';
+import { RefreshMetadataResponseDto } from './dto/refresh-metadata-response.dto';
 import { UpdateBookmarkDto } from './dto/update-request.dto';
 import { UpdateBookmarkResponseDto } from './dto/update-response.dto';
 import { Bookmark } from './entity/bookmark.entity';
+import { MetadataExtractionService } from './services/metadata-extraction.service';
 
 @Injectable()
 export class BookmarkService {
   constructor(
     @InjectRepository(Bookmark)
     private readonly bookmarkRepository: Repository<Bookmark>,
+    private readonly metadataExtractionService: MetadataExtractionService,
   ) {}
 
-  create(createBookmarkDto: CreateBookmarkDto, user: User): Promise<Bookmark> {
+  async create(
+    createBookmarkDto: CreateBookmarkDto,
+    user: User,
+  ): Promise<Bookmark> {
     const newBookmark = this.bookmarkRepository.create({
       ...createBookmarkDto,
       user,
     });
 
-    return this.bookmarkRepository.save(newBookmark);
+    // Extract metadata asynchronously after saving
+    const savedBookmark = await this.bookmarkRepository.save(newBookmark);
+
+    // Extract metadata in the background
+    void this.extractAndUpdateMetadata(savedBookmark.id, createBookmarkDto.url);
+
+    return savedBookmark;
+  }
+
+  private async extractAndUpdateMetadata(
+    bookmarkId: string,
+    url: string,
+  ): Promise<void> {
+    try {
+      const metadata =
+        await this.metadataExtractionService.extractMetadata(url);
+
+      const bookmark = await this.bookmarkRepository.findOne({
+        where: { id: bookmarkId },
+      });
+
+      if (bookmark) {
+        bookmark.metadata = metadata as Record<string, unknown>;
+        // Update title and description if they weren't provided
+        if (metadata.title) bookmark.title = metadata.title;
+        if (metadata.description) bookmark.description = metadata.description;
+
+        await this.bookmarkRepository.save(bookmark);
+      }
+    } catch (error) {
+      throw new Error(
+        `Failed to extract metadata for ${url}: ${(error as Error).message}`,
+      );
+    }
   }
 
   read(
@@ -86,5 +125,43 @@ export class BookmarkService {
     await this.bookmarkRepository.delete({ id, user });
 
     return { id };
+  }
+
+  async refreshMetadata(
+    id: string,
+    user: User,
+  ): Promise<RefreshMetadataResponseDto> {
+    const bookmark = await this.bookmarkRepository.findOne({
+      where: { id, user },
+    });
+
+    if (!bookmark) {
+      throw new NotFoundException('Bookmark not found');
+    }
+
+    try {
+      const metadata = await this.metadataExtractionService.extractMetadata(
+        bookmark.url,
+      );
+
+      bookmark.metadata = metadata as Record<string, unknown>;
+      if (metadata.title) bookmark.title = metadata.title;
+      if (metadata.description) bookmark.description = metadata.description;
+
+      await this.bookmarkRepository.save(bookmark);
+
+      return {
+        id,
+        success: true,
+        message: 'Metadata refreshed successfully',
+        metadata: metadata as Record<string, unknown>,
+      };
+    } catch (error) {
+      return {
+        id,
+        success: false,
+        message: `Failed to refresh metadata: ${(error as Error).message}`,
+      };
+    }
   }
 }
