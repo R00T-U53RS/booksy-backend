@@ -18,6 +18,10 @@ import { JwtGuard } from '../auth/guards/jwt.guard';
 import { User } from '../users/entities/user.entity';
 
 import { BookmarkService } from './bookmark.service';
+import { BulkDeleteBookmarkRequestDto } from './dto/bulk-delete-request.dto';
+import { BulkDeleteBookmarkResponseDto } from './dto/bulk-delete-response.dto';
+import { BulkTagBookmarkRequestDto } from './dto/bulk-tag-request.dto';
+import { BulkTagBookmarkResponseDto } from './dto/bulk-tag-response.dto';
 import { CreateBookmarkDto } from './dto/create-request.dto';
 import { BookmarkResponseDto } from './dto/create-response.dto';
 import { DeleteBookmarkResponseDto } from './dto/delete-response.dto';
@@ -89,5 +93,25 @@ export class BookmarkController {
     @Request() request: { user: User },
   ): Promise<RefreshMetadataResponseDto> {
     return this.bookmarkService.refreshMetadata(id, request.user);
+  }
+
+  @UseGuards(JwtGuard)
+  @Post('bulk/delete')
+  @HttpCode(HttpStatus.OK)
+  bulkDelete(
+    @Body() bulkDeleteDto: BulkDeleteBookmarkRequestDto,
+    @Request() request: { user: User },
+  ): Promise<BulkDeleteBookmarkResponseDto> {
+    return this.bookmarkService.bulkDelete(bulkDeleteDto, request.user);
+  }
+
+  @UseGuards(JwtGuard)
+  @Post('bulk/tag')
+  @HttpCode(HttpStatus.OK)
+  bulkTag(
+    @Body() bulkTagDto: BulkTagBookmarkRequestDto,
+    @Request() request: { user: User },
+  ): Promise<BulkTagBookmarkResponseDto> {
+    return this.bookmarkService.bulkTag(bulkTagDto, request.user);
   }
 }
