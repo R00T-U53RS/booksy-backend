@@ -21,6 +21,9 @@ export class ReadBookmarkResponseDto {
   description?: string;
 
   @Expose()
+  metadata?: Record<string, unknown>;
+
+  @Expose()
   createdAt: Date;
 
   @Expose()

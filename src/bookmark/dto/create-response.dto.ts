@@ -21,5 +21,8 @@ export class BookmarkResponseDto {
   tags?: string;
 
   @Expose()
+  metadata?: Record<string, unknown>;
+
+  @Expose()
   createdAt: Date;
 }
