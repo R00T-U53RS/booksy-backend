@@ -4,6 +4,10 @@ import { Repository } from 'typeorm';
 
 import { User } from '../users/entities/user.entity';
 
+import { BulkDeleteBookmarkRequestDto } from './dto/bulk-delete-request.dto';
+import { BulkDeleteBookmarkResponseDto } from './dto/bulk-delete-response.dto';
+import { BulkTagBookmarkRequestDto } from './dto/bulk-tag-request.dto';
+import { BulkTagBookmarkResponseDto } from './dto/bulk-tag-response.dto';
 import { CreateBookmarkDto } from './dto/create-request.dto';
 import { DeleteBookmarkResponseDto } from './dto/delete-response.dto';
 import { ReadBookmarkRequestDto } from './dto/read-request.dto';
@@ -11,6 +15,7 @@ import { RefreshMetadataResponseDto } from './dto/refresh-metadata-response.dto'
 import { UpdateBookmarkDto } from './dto/update-request.dto';
 import { UpdateBookmarkResponseDto } from './dto/update-response.dto';
 import { Bookmark } from './entity/bookmark.entity';
+import { BulkOperationsService } from './services/bulk-operations.service';
 import { MetadataExtractionService } from './services/metadata-extraction.service';
 
 @Injectable()
@@ -19,6 +24,7 @@ export class BookmarkService {
     @InjectRepository(Bookmark)
     private readonly bookmarkRepository: Repository<Bookmark>,
     private readonly metadataExtractionService: MetadataExtractionService,
+    private readonly bulkOperationsService: BulkOperationsService,
   ) {}
 
   async create(
@@ -163,5 +169,19 @@ export class BookmarkService {
         message: `Failed to refresh metadata: ${(error as Error).message}`,
       };
     }
+  }
+
+  bulkDelete(
+    bulkDeleteDto: BulkDeleteBookmarkRequestDto,
+    user: User,
+  ): Promise<BulkDeleteBookmarkResponseDto> {
+    return this.bulkOperationsService.bulkDelete(bulkDeleteDto, user);
+  }
+
+  bulkTag(
+    bulkTagDto: BulkTagBookmarkRequestDto,
+    user: User,
+  ): Promise<BulkTagBookmarkResponseDto> {
+    return this.bulkOperationsService.bulkTag(bulkTagDto, user);
   }
 }

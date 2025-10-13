@@ -4,12 +4,18 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { BookmarkController } from './bookmark.controller';
 import { BookmarkService } from './bookmark.service';
 import { Bookmark } from './entity/bookmark.entity';
+import { BulkOperationsService } from './services/bulk-operations.service';
 import { CacheService } from './services/cache.service';
 import { MetadataExtractionService } from './services/metadata-extraction.service';
 
 @Module({
   imports: [TypeOrmModule.forFeature([Bookmark])],
   controllers: [BookmarkController],
-  providers: [BookmarkService, MetadataExtractionService, CacheService],
+  providers: [
+    BookmarkService,
+    MetadataExtractionService,
+    CacheService,
+    BulkOperationsService,
+  ],
 })
 export class BookmarkModule {}
