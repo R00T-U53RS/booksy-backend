@@ -7,7 +7,7 @@ import {
   UpdateDateColumn,
 } from 'typeorm';
 
-import { Bookmark } from '../../bookmark/entity/bookmark.entity';
+import { BookmarkSet } from '../../bookmark-set/entities/bookmark-set.entity';
 
 @Entity('users')
 export class User {
@@ -23,12 +23,12 @@ export class User {
   @Column({ unique: true, length: 255 })
   email: string;
 
-  @OneToMany(() => Bookmark, bookmark => bookmark.user)
-  bookmarks: Bookmark[];
-
   @CreateDateColumn()
   createdAt: Date;
 
   @UpdateDateColumn()
   updatedAt: Date;
+
+  @OneToMany(() => BookmarkSet, bookmarkSet => bookmarkSet.user)
+  bookmarkSets: BookmarkSet[];
 }

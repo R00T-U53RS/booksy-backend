@@ -7,12 +7,27 @@ import {
   UpdateDateColumn,
 } from 'typeorm';
 
+import { BookmarkSet } from '../../bookmark-set/entities/bookmark-set.entity';
 import { User } from '../../users/entities/user.entity';
+
+export enum BookmarkType {
+  FOLDER = 'folder',
+  BOOKMARK = 'bookmark',
+}
 
 @Entity('bookmarks')
 export class Bookmark {
   @PrimaryGeneratedColumn('uuid')
   id: string;
+
+  @Column({ nullable: true })
+  parentId: string;
+
+  @Column({ default: 0 })
+  position: number;
+
+  @Column({ enum: BookmarkType })
+  type: BookmarkType;
 
   @Column()
   title: string;
@@ -20,17 +35,8 @@ export class Bookmark {
   @Column()
   url: string;
 
-  @Column()
-  source: string;
-
-  @Column({ nullable: true })
-  tags?: string;
-
   @Column({ nullable: true })
   description?: string;
-
-  @Column({ type: 'json', nullable: true })
-  metadata?: Record<string, unknown>;
 
   @CreateDateColumn()
   createdAt: Date;
@@ -38,9 +44,19 @@ export class Bookmark {
   @UpdateDateColumn()
   updatedAt: Date;
 
-  @ManyToOne(() => User, user => user.bookmarks, {
+  @Column({ type: 'timestamp', nullable: true })
+  dateGroupModified: Date;
+
+  @Column({ nullable: true })
+  tags?: string;
+
+  @ManyToOne(() => User, {
     nullable: false,
-    onDelete: 'CASCADE',
   })
   user: User;
+
+  @ManyToOne(() => BookmarkSet, bookmarkSet => bookmarkSet.bookmarks, {
+    nullable: false,
+  })
+  bookmarkSet: BookmarkSet;
 }
