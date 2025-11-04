@@ -1,4 +1,4 @@
-import { IsBoolean, IsOptional, IsString } from 'class-validator';
+import { IsOptional, IsString } from 'class-validator';
 
 export class CreateBookmarkSetDto {
   @IsString()
@@ -7,8 +7,4 @@ export class CreateBookmarkSetDto {
   @IsOptional()
   @IsString()
   description?: string;
-
-  @IsOptional()
-  @IsBoolean()
-  isDefault?: boolean;
 }
