@@ -7,7 +7,7 @@ import {
   UpdateDateColumn,
 } from 'typeorm';
 
-import { BookmarkSet } from '../../bookmark-set/entities/bookmark-set.entity';
+import { Profile } from '../../profile/entities/profile.entity';
 import { User } from '../../users/entities/user.entity';
 
 export enum BookmarkType {
@@ -55,8 +55,8 @@ export class Bookmark {
   })
   user: User;
 
-  @ManyToOne(() => BookmarkSet, bookmarkSet => bookmarkSet.bookmarks, {
+  @ManyToOne(() => Profile, profile => profile.bookmarks, {
     nullable: false,
   })
-  bookmarkSet: BookmarkSet;
+  profile: Profile;
 }

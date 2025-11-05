@@ -8,19 +8,20 @@ export class BookmarkController {
   constructor(private readonly bookmarkService: BookmarkService) {}
 
   @Get('set/:setId')
-  async getAllInSet(@Param('setId') setId: string) {
-    const bookmarks = await this.bookmarkService.findAllBookmarksInSet(setId);
+  async getAllInProfile(@Param('profileId') profileId: string) {
+    const bookmarks =
+      await this.bookmarkService.findAllBookmarksInProfile(profileId);
     return this.bookmarkService.buildTree(bookmarks);
   }
 
-  @Get('set/:setId/flat')
-  getAllInSetFlat(@Param('setId') setId: string) {
-    return this.bookmarkService.findAllBookmarksInSet(setId);
+  @Get('profile/:profileId/flat')
+  getAllInProfileFlat(@Param('profileId') profileId: string) {
+    return this.bookmarkService.findAllBookmarksInProfile(profileId);
   }
 
-  @Get('set/:setId/roots')
-  getRootBookmarks(@Param('setId') setId: string) {
-    return this.bookmarkService.findRootBookmarks(setId);
+  @Get('profile/:profileId/roots')
+  getRootBookmarks(@Param('profileId') profileId: string) {
+    return this.bookmarkService.findRootBookmarks(profileId);
   }
 
   @Post()

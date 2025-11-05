@@ -6,9 +6,9 @@ import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { AuthModule } from './auth/auth.module';
 import { BookmarkModule } from './bookmark/bookmark.module';
-import { BookmarkSetModule } from './bookmark-set/bookmark-set.module';
 import { getDatabaseConfig } from './config/database.config';
 import { validate } from './config/env.validation';
+import { ProfileModule } from './profile/profile.module';
 import { UsersModule } from './users/users.module';
 
 @Module({
@@ -26,7 +26,7 @@ import { UsersModule } from './users/users.module';
     UsersModule,
     AuthModule,
     BookmarkModule,
-    BookmarkSetModule,
+    ProfileModule,
   ],
   controllers: [AppController],
   providers: [AppService],

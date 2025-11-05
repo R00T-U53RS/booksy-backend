@@ -11,18 +11,18 @@ export class BookmarkService {
     private readonly bookmarksRepository: Repository<Bookmark>,
   ) {}
 
-  findAllBookmarksInSet(bookmarkSetId: string): Promise<Bookmark[]> {
+  findAllBookmarksInProfile(profileId: string): Promise<Bookmark[]> {
     return this.bookmarksRepository.find({
       where: {
-        bookmarkSet: { id: bookmarkSetId },
+        profile: { id: profileId },
       },
     });
   }
 
-  findRootBookmarks(bookmarkSetId: string): Promise<Bookmark[]> {
+  findRootBookmarks(profileId: string): Promise<Bookmark[]> {
     return this.bookmarksRepository.find({
       where: {
-        bookmarkSet: { id: bookmarkSetId },
+        profile: { id: profileId },
         parentId: IsNull(),
       },
     });

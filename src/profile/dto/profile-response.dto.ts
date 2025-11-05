@@ -3,7 +3,7 @@ import { Exclude, Expose, Type } from 'class-transformer';
 import { Bookmark } from '../../bookmark/entity/bookmark.entity';
 
 @Exclude()
-export class BookmarkSetResponseDto {
+export class ProfileResponseDto {
   @Expose()
   id: string;
 

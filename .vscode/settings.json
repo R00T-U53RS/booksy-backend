@@ -44,5 +44,6 @@
     "**/dist": true,
     "**/coverage": true,
     "**/.git": true
-  }
+  },
+  "files.eol": "\n"
 }

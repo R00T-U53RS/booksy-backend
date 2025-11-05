@@ -1,6 +1,6 @@
 import { IsOptional, IsString } from 'class-validator';
 
-export class CreateBookmarkSetDto {
+export class CreateProfileDto {
   @IsString()
   name: string;
 

@@ -7,7 +7,7 @@ import {
   UpdateDateColumn,
 } from 'typeorm';
 
-import { BookmarkSet } from '../../bookmark-set/entities/bookmark-set.entity';
+import { Profile } from '../../profile/entities/profile.entity';
 
 @Entity('users')
 export class User {
@@ -29,6 +29,6 @@ export class User {
   @UpdateDateColumn()
   updatedAt: Date;
 
-  @OneToMany(() => BookmarkSet, bookmarkSet => bookmarkSet.user)
-  bookmarkSets: BookmarkSet[];
+  @OneToMany(() => Profile, profile => profile.user)
+  profiles: Profile[];
 }
