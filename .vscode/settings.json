@@ -4,7 +4,6 @@
   "editor.formatOnType": false,
   "editor.codeActionsOnSave": {
     "source.fixAll.eslint": "explicit",
-    "source.organizeImports": "explicit"
   },
   "editor.defaultFormatter": "esbenp.prettier-vscode",
   "[typescript]": {
@@ -45,5 +44,6 @@
     "**/dist": true,
     "**/coverage": true,
     "**/.git": true
-  }
+  },
+  "files.eol": "\n"
 }

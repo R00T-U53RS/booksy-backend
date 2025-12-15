@@ -1,117 +1,88 @@
 import {
   Body,
   Controller,
-  Delete,
   Get,
-  HttpCode,
-  HttpStatus,
   Param,
   Patch,
   Post,
-  Query,
   Request,
   UseGuards,
 } from '@nestjs/common';
-import { plainToInstance } from 'class-transformer';
 
 import { JwtGuard } from '../auth/guards/jwt.guard';
 import { User } from '../users/entities/user.entity';
 
 import { BookmarkService } from './bookmark.service';
-import { BulkDeleteBookmarkRequestDto } from './dto/bulk-delete-request.dto';
-import { BulkDeleteBookmarkResponseDto } from './dto/bulk-delete-response.dto';
-import { BulkTagBookmarkRequestDto } from './dto/bulk-tag-request.dto';
-import { BulkTagBookmarkResponseDto } from './dto/bulk-tag-response.dto';
 import { CreateBookmarkDto } from './dto/create-request.dto';
-import { BookmarkResponseDto } from './dto/create-response.dto';
-import { DeleteBookmarkResponseDto } from './dto/delete-response.dto';
-import { ReadBookmarkRequestDto } from './dto/read-request.dto';
-import { ReadBookmarkResponseDto } from './dto/read-response.dto';
-import { RefreshMetadataResponseDto } from './dto/refresh-metadata-response.dto';
-import { UpdateBookmarkDto } from './dto/update-request.dto';
-import { UpdateBookmarkResponseDto } from './dto/update-response.dto';
+import { SyncBookmarkItemDto } from './dto/sync-request.dto';
+import { Bookmark } from './entity/bookmark.entity';
 
-@Controller('bookmarks')
+@Controller('profiles/:profileId/bookmarks')
+@UseGuards(JwtGuard)
 export class BookmarkController {
   constructor(private readonly bookmarkService: BookmarkService) {}
 
-  @UseGuards(JwtGuard)
-  @Post()
-  @HttpCode(HttpStatus.CREATED)
-  async create(
-    @Body() createBookmarkDto: CreateBookmarkDto,
-    @Request() request: { user: User },
-  ): Promise<BookmarkResponseDto> {
-    const bookmark = await this.bookmarkService.create(
-      createBookmarkDto,
-      request.user,
-    );
-
-    return plainToInstance(BookmarkResponseDto, bookmark);
-  }
-
-  @UseGuards(JwtGuard)
   @Get()
-  async read(
-    @Query() readBookmarkRequestDto: ReadBookmarkRequestDto,
+  getAllInProfileFlat(
+    @Param('profileId') profileId: string,
     @Request() request: { user: User },
-  ): Promise<ReadBookmarkResponseDto[]> {
-    const bookmarks = await this.bookmarkService.read(
-      request.user,
-      readBookmarkRequestDto,
+  ) {
+    return this.bookmarkService.findAllBookmarksInProfile(
+      profileId,
+      request.user.id,
     );
-
-    return plainToInstance(ReadBookmarkResponseDto, bookmarks, {
-      excludeExtraneousValues: true,
-    });
   }
 
-  @UseGuards(JwtGuard)
+  @Get('tree')
+  async getAllInProfileTree(
+    @Param('profileId') profileId: string,
+    @Request() request: { user: User },
+  ) {
+    const bookmarks = await this.bookmarkService.findAllBookmarksInProfile(
+      profileId,
+      request.user.id,
+    );
+    return this.bookmarkService.buildTree(bookmarks);
+  }
+
+  @Get('roots')
+  getRootBookmarks(
+    @Param('profileId') profileId: string,
+    @Request() request: { user: User },
+  ) {
+    return this.bookmarkService.findRootBookmarks(profileId, request.user.id);
+  }
+
+  @Post()
+  create(
+    @Param('profileId') profileId: string,
+    @Body() createData: CreateBookmarkDto,
+    @Request() request: { user: User },
+  ) {
+    return this.bookmarkService.create(profileId, request.user, createData);
+  }
+
+  @Post('sync')
+  sync(
+    @Param('profileId') profileId: string,
+    @Body() bookmarks: SyncBookmarkItemDto[],
+    @Request() request: { user: User },
+  ) {
+    return this.bookmarkService.sync(profileId, request.user, bookmarks);
+  }
+
   @Patch(':id')
   update(
+    @Param('profileId') profileId: string,
     @Param('id') id: string,
-    @Body() updateBookmarkDto: UpdateBookmarkDto,
+    @Body() updateData: Partial<Bookmark>,
     @Request() request: { user: User },
-  ): Promise<UpdateBookmarkResponseDto> {
-    return this.bookmarkService.update(id, updateBookmarkDto, request.user);
-  }
-
-  @UseGuards(JwtGuard)
-  @Delete(':id')
-  delete(
-    @Param('id') id: string,
-    @Request() request: { user: User },
-  ): Promise<DeleteBookmarkResponseDto> {
-    return this.bookmarkService.delete(id, request.user);
-  }
-
-  @UseGuards(JwtGuard)
-  @Post(':id/refresh-metadata')
-  @HttpCode(HttpStatus.OK)
-  refreshMetadata(
-    @Param('id') id: string,
-    @Request() request: { user: User },
-  ): Promise<RefreshMetadataResponseDto> {
-    return this.bookmarkService.refreshMetadata(id, request.user);
-  }
-
-  @UseGuards(JwtGuard)
-  @Post('bulk/delete')
-  @HttpCode(HttpStatus.OK)
-  bulkDelete(
-    @Body() bulkDeleteDto: BulkDeleteBookmarkRequestDto,
-    @Request() request: { user: User },
-  ): Promise<BulkDeleteBookmarkResponseDto> {
-    return this.bookmarkService.bulkDelete(bulkDeleteDto, request.user);
-  }
-
-  @UseGuards(JwtGuard)
-  @Post('bulk/tag')
-  @HttpCode(HttpStatus.OK)
-  bulkTag(
-    @Body() bulkTagDto: BulkTagBookmarkRequestDto,
-    @Request() request: { user: User },
-  ): Promise<BulkTagBookmarkResponseDto> {
-    return this.bookmarkService.bulkTag(bulkTagDto, request.user);
+  ) {
+    return this.bookmarkService.update(
+      profileId,
+      id,
+      updateData,
+      request.user.id,
+    );
   }
 }

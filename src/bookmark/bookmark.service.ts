@@ -1,187 +1,323 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { IsNull, Repository } from 'typeorm';
 
+import { Profile } from '../profile/entities/profile.entity';
 import { User } from '../users/entities/user.entity';
 
-import { BulkDeleteBookmarkRequestDto } from './dto/bulk-delete-request.dto';
-import { BulkDeleteBookmarkResponseDto } from './dto/bulk-delete-response.dto';
-import { BulkTagBookmarkRequestDto } from './dto/bulk-tag-request.dto';
-import { BulkTagBookmarkResponseDto } from './dto/bulk-tag-response.dto';
 import { CreateBookmarkDto } from './dto/create-request.dto';
-import { DeleteBookmarkResponseDto } from './dto/delete-response.dto';
-import { ReadBookmarkRequestDto } from './dto/read-request.dto';
-import { RefreshMetadataResponseDto } from './dto/refresh-metadata-response.dto';
-import { UpdateBookmarkDto } from './dto/update-request.dto';
-import { UpdateBookmarkResponseDto } from './dto/update-response.dto';
-import { Bookmark } from './entity/bookmark.entity';
-import { BulkOperationsService } from './services/bulk-operations.service';
-import { MetadataExtractionService } from './services/metadata-extraction.service';
+import { SyncBookmarkItemDto } from './dto/sync-request.dto';
+import { Bookmark, BookmarkType } from './entity/bookmark.entity';
 
 @Injectable()
 export class BookmarkService {
   constructor(
     @InjectRepository(Bookmark)
-    private readonly bookmarkRepository: Repository<Bookmark>,
-    private readonly metadataExtractionService: MetadataExtractionService,
-    private readonly bulkOperationsService: BulkOperationsService,
+    private readonly bookmarksRepository: Repository<Bookmark>,
+    @InjectRepository(Profile)
+    private readonly profileRepository: Repository<Profile>,
   ) {}
 
+  findAllBookmarksInProfile(
+    profileId: string,
+    userId: string,
+  ): Promise<Bookmark[]> {
+    return this.bookmarksRepository.find({
+      where: {
+        profile: { id: profileId, user: { id: userId } },
+        user: { id: userId },
+        deleted: false,
+      },
+    });
+  }
+
+  findRootBookmarks(profileId: string, userId: string): Promise<Bookmark[]> {
+    return this.bookmarksRepository.find({
+      where: {
+        profile: { id: profileId, user: { id: userId } },
+        user: { id: userId },
+        parentId: IsNull(),
+        deleted: false,
+      },
+    });
+  }
+
   async create(
-    createBookmarkDto: CreateBookmarkDto,
+    profileId: string,
     user: User,
+    createData: CreateBookmarkDto,
   ): Promise<Bookmark> {
-    const newBookmark = this.bookmarkRepository.create({
-      ...createBookmarkDto,
+    const profile = await this.findProfile(profileId, user.id);
+
+    const bookmark = this.bookmarksRepository.create({
+      ...createData,
+      parentId: createData.parentId || '',
+      position: createData.position ?? 0,
+      profile,
       user,
     });
 
-    // Extract metadata asynchronously after saving
-    const savedBookmark = await this.bookmarkRepository.save(newBookmark);
-
-    // Extract metadata in the background
-    void this.extractAndUpdateMetadata(savedBookmark.id, createBookmarkDto.url);
-
-    return savedBookmark;
+    return this.bookmarksRepository.save(bookmark);
   }
 
-  private async extractAndUpdateMetadata(
-    bookmarkId: string,
-    url: string,
-  ): Promise<void> {
-    try {
-      const metadata =
-        await this.metadataExtractionService.extractMetadata(url);
-
-      const bookmark = await this.bookmarkRepository.findOne({
-        where: { id: bookmarkId },
-      });
-
-      if (bookmark) {
-        bookmark.metadata = metadata as Record<string, unknown>;
-        // Update title and description if they weren't provided
-        if (metadata.title) bookmark.title = metadata.title;
-        if (metadata.description) bookmark.description = metadata.description;
-
-        await this.bookmarkRepository.save(bookmark);
-      }
-    } catch (error) {
-      throw new Error(
-        `Failed to extract metadata for ${url}: ${(error as Error).message}`,
-      );
-    }
-  }
-
-  read(
-    user: User,
-    readBookmarkRequestDto: ReadBookmarkRequestDto,
-  ): Promise<Bookmark[]> {
-    const queryBuilder = this.bookmarkRepository
-      .createQueryBuilder('bookmark')
-      .where('bookmark.user = :userId', { userId: user.id });
-
-    if (readBookmarkRequestDto.source) {
-      queryBuilder.andWhere('bookmark.source = :source', {
-        source: readBookmarkRequestDto.source,
-      });
-    }
-
-    if (readBookmarkRequestDto.title) {
-      queryBuilder.andWhere('bookmark.title LIKE :title', {
-        title: `%${readBookmarkRequestDto.title}%`,
-      });
-    }
-
-    if (readBookmarkRequestDto.tags) {
-      queryBuilder.andWhere('bookmark.tags LIKE :tags', {
-        tags: `%${readBookmarkRequestDto.tags}%`,
-      });
-    }
-
-    if (readBookmarkRequestDto.url) {
-      queryBuilder.andWhere('bookmark.url LIKE :url', {
-        url: `%${readBookmarkRequestDto.url}%`,
-      });
-    }
-
-    return queryBuilder.getMany();
-  }
   async update(
+    profileId: string,
     id: string,
-    updateBookmarkDto: UpdateBookmarkDto,
-    user: User,
-  ): Promise<UpdateBookmarkResponseDto> {
-    const bookmark = await this.bookmarkRepository.findOne({
-      where: { id, user },
+    updateData: Partial<Bookmark>,
+    userId: string,
+  ): Promise<Bookmark> {
+    const bookmark = await this.bookmarksRepository.findOne({
+      where: {
+        id,
+        profile: { id: profileId, user: { id: userId } },
+        user: { id: userId },
+      },
     });
 
     if (!bookmark) {
-      throw new NotFoundException('Bookmark not found');
+      throw new NotFoundException(`Bookmark with id ${id} not found`);
     }
 
-    await this.bookmarkRepository.update(id, {
-      ...updateBookmarkDto,
-      tags: updateBookmarkDto.tags?.join(','),
+    Object.assign(bookmark, updateData);
+    return this.bookmarksRepository.save(bookmark);
+  }
+
+  buildTree(bookmarks: Bookmark[]): Array<Bookmark & { children: Bookmark[] }> {
+    const bookmarkMap = new Map<string, Bookmark & { children: Bookmark[] }>();
+    const rootBookmarks: Array<Bookmark & { children: Bookmark[] }> = [];
+
+    // First pass: create map
+    bookmarks.forEach(bookmark => {
+      bookmarkMap.set(bookmark.id, { ...bookmark, children: [] });
     });
 
-    return { id };
+    // Second pass: build tree
+    bookmarks.forEach(bookmark => {
+      const node = bookmarkMap.get(bookmark.id);
+      if (!node) return;
+
+      if (bookmark.parentId === null) {
+        rootBookmarks.push(node);
+      } else {
+        const parent = bookmarkMap.get(bookmark.parentId);
+        if (parent) {
+          parent.children.push(node);
+        }
+      }
+    });
+
+    return rootBookmarks;
   }
 
-  async delete(id: string, user: User): Promise<DeleteBookmarkResponseDto> {
-    await this.bookmarkRepository.delete({ id, user });
-
-    return { id };
-  }
-
-  async refreshMetadata(
-    id: string,
+  async sync(
+    profileId: string,
     user: User,
-  ): Promise<RefreshMetadataResponseDto> {
-    const bookmark = await this.bookmarkRepository.findOne({
-      where: { id, user },
-    });
+    bookmarks: SyncBookmarkItemDto[],
+  ): Promise<{ updated: number; created: number; deleted: number }> {
+    this.validateSyncData(bookmarks);
 
-    if (!bookmark) {
-      throw new NotFoundException('Bookmark not found');
+    const profile = await this.findProfile(profileId, user.id);
+    const context = {
+      profileId,
+      user,
+      profile,
+      stats: { updated: 0, created: 0, deleted: 0 },
+      seenUrls: new Set<string>(),
+    };
+
+    // Mark all existing bookmarks in this profile as deleted
+    // We'll unmark them as we process the sync data
+    await this.bookmarksRepository.update(
+      {
+        profile: { id: profileId },
+        user: { id: user.id },
+      },
+      { deleted: true },
+    );
+
+    // Process all bookmarks from sync data
+    for (const bookmark of bookmarks) {
+      await this.processBookmarkItem(bookmark, context);
     }
 
-    try {
-      const metadata = await this.metadataExtractionService.extractMetadata(
-        bookmark.url,
+    // Count how many bookmarks are still marked as deleted
+    const deletedCount = await this.bookmarksRepository.count({
+      where: {
+        profile: { id: profileId },
+        user: { id: user.id },
+        deleted: true,
+      },
+    });
+
+    context.stats.deleted = deletedCount;
+    return context.stats;
+  }
+
+  private async processBookmarkItem(
+    item: SyncBookmarkItemDto,
+    context: {
+      profileId: string;
+      user: User;
+      profile: Profile;
+      stats: { updated: number; created: number; deleted: number };
+      seenUrls: Set<string>;
+    },
+  ): Promise<void> {
+    for (const child of item?.children ?? []) {
+      await this.processBookmarkItem(child, context);
+    }
+
+    if (this.shouldSkipBookmark(item.id)) {
+      return;
+    }
+
+    const url = item.url ?? '';
+    if (url) {
+      context.seenUrls.add(url);
+    }
+
+    const result = await this.createOrUpdateBookmark(item, context);
+
+    if (result.isNew) {
+      context.stats.created++;
+    } else {
+      context.stats.updated++;
+    }
+  }
+
+  private validateSyncData(bookmarks: SyncBookmarkItemDto[]): void {
+    if (bookmarks === null || bookmarks === undefined) {
+      throw new BadRequestException('Bookmarks data is required');
+    }
+
+    if (!Array.isArray(bookmarks)) {
+      throw new BadRequestException(
+        `Bookmarks must be an array. Received: ${typeof bookmarks}`,
       );
+    }
 
-      bookmark.metadata = metadata as Record<string, unknown>;
-      if (metadata.title) bookmark.title = metadata.title;
-      if (metadata.description) bookmark.description = metadata.description;
-
-      await this.bookmarkRepository.save(bookmark);
-
-      return {
-        id,
-        success: true,
-        message: 'Metadata refreshed successfully',
-        metadata: metadata as Record<string, unknown>,
-      };
-    } catch (error) {
-      return {
-        id,
-        success: false,
-        message: `Failed to refresh metadata: ${(error as Error).message}`,
-      };
+    if (bookmarks.length === 0) {
+      throw new BadRequestException('Bookmarks array cannot be empty');
     }
   }
 
-  bulkDelete(
-    bulkDeleteDto: BulkDeleteBookmarkRequestDto,
-    user: User,
-  ): Promise<BulkDeleteBookmarkResponseDto> {
-    return this.bulkOperationsService.bulkDelete(bulkDeleteDto, user);
+  // We skip these bookmarks, the root bookmark, bookmarks bar, and other bookmarks, these are not editable by the browser
+  private shouldSkipBookmark(id: string): boolean {
+    return id === '0' || id === '1' || id === '2';
   }
 
-  bulkTag(
-    bulkTagDto: BulkTagBookmarkRequestDto,
-    user: User,
-  ): Promise<BulkTagBookmarkResponseDto> {
-    return this.bulkOperationsService.bulkTag(bulkTagDto, user);
+  private async createOrUpdateBookmark(
+    item: SyncBookmarkItemDto,
+    context: {
+      profileId: string;
+      user: User;
+      profile: Profile;
+    },
+  ): Promise<{ bookmark: Bookmark; isNew: boolean }> {
+    const url = item.url ?? null;
+    const existing = await this.findBookmarkByUrl(
+      url,
+      context.profileId,
+      context.user.id,
+    );
+
+    if (existing) {
+      return this.updateExistingBookmark(existing, item);
+    }
+
+    return this.createNewBookmark(item, context);
+  }
+
+  private findBookmarkByUrl(
+    url: string | null,
+    profileId: string,
+    userId: string,
+  ): Promise<Bookmark | null> {
+    if (url === null) {
+      return this.bookmarksRepository.findOne({
+        where: {
+          profile: { id: profileId },
+          user: { id: userId },
+          url: IsNull(),
+        },
+      });
+    }
+
+    return this.bookmarksRepository.findOne({
+      where: {
+        profile: { id: profileId },
+        user: { id: userId },
+        url,
+      },
+    });
+  }
+
+  private async updateExistingBookmark(
+    existing: Bookmark,
+    item: SyncBookmarkItemDto,
+  ): Promise<{ bookmark: Bookmark; isNew: boolean }> {
+    const type = this.determineBookmarkType(item);
+    existing.title = item.title;
+    existing.position = item.index;
+    existing.parentId = item.parentId ?? '';
+    if (item.url !== undefined) {
+      existing.url = item.url || '';
+    }
+    existing.type = type;
+    existing.deleted = false;
+    if (item.dateGroupModified) {
+      existing.dateGroupModified = new Date(item.dateGroupModified);
+    }
+    const saved = await this.bookmarksRepository.save(existing);
+    return { bookmark: saved, isNew: false };
+  }
+
+  private async createNewBookmark(
+    item: SyncBookmarkItemDto,
+    context: {
+      profile: Profile;
+      user: User;
+    },
+  ): Promise<{ bookmark: Bookmark; isNew: boolean }> {
+    const type = this.determineBookmarkType(item);
+    const bookmarkData: Partial<Bookmark> = {
+      title: item.title,
+      url: item.url ?? undefined,
+      type,
+      parentId: item.parentId ?? '',
+      position: item.index,
+      dateGroupModified: item.dateGroupModified
+        ? new Date(item.dateGroupModified)
+        : undefined,
+      deleted: false,
+      profile: context.profile,
+      user: context.user,
+    };
+
+    const bookmark = this.bookmarksRepository.create(bookmarkData);
+    const saved = await this.bookmarksRepository.save(bookmark);
+    return { bookmark: saved, isNew: true };
+  }
+
+  private determineBookmarkType(item: SyncBookmarkItemDto): BookmarkType {
+    return !item.url || (item.children && item.children.length > 0)
+      ? BookmarkType.FOLDER
+      : BookmarkType.BOOKMARK;
+  }
+
+  private async findProfile(profileId: string, userId: string) {
+    const profile = await this.profileRepository.findOne({
+      where: { id: profileId, user: { id: userId } },
+    });
+
+    if (!profile) {
+      throw new NotFoundException(`Profile with id ${profileId} not found`);
+    }
+
+    return profile;
   }
 }
