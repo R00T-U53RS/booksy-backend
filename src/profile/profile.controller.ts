@@ -7,9 +7,11 @@ import {
   Patch,
   Post,
   Request,
+  UseGuards,
 } from '@nestjs/common';
 import { plainToInstance } from 'class-transformer';
 
+import { JwtGuard } from '../auth/guards/jwt.guard';
 import { User } from '../users/entities/user.entity';
 
 import { CreateProfileDto } from './dto/create-profile.dto';
@@ -18,6 +20,7 @@ import { UpdateProfileDto } from './dto/update-profile.dto';
 import { ProfileService } from './profile.service';
 
 @Controller('profile')
+@UseGuards(JwtGuard)
 export class ProfileController {
   constructor(private readonly profileService: ProfileService) {}
 

@@ -32,7 +32,7 @@ export class Bookmark {
   @Column()
   title: string;
 
-  @Column()
+  @Column({ nullable: true })
   url: string;
 
   @Column({ nullable: true })
@@ -49,6 +49,9 @@ export class Bookmark {
 
   @Column({ nullable: true })
   tags?: string;
+
+  @Column({ default: false })
+  deleted: boolean;
 
   @ManyToOne(() => User, {
     nullable: false,

@@ -1,4 +1,15 @@
-import { IsNotEmpty, IsOptional, IsString, IsUrl } from 'class-validator';
+import {
+  IsEnum,
+  IsInt,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  IsUrl,
+  IsUUID,
+  Min,
+} from 'class-validator';
+
+import { BookmarkType } from '../entity/bookmark.entity';
 
 export class CreateBookmarkDto {
   @IsString()
@@ -16,6 +27,17 @@ export class CreateBookmarkDto {
   @IsString()
   @IsNotEmpty()
   source: string;
+
+  @IsEnum(BookmarkType)
+  type: BookmarkType;
+
+  @IsUUID()
+  @IsString()
+  parentId: string;
+
+  @IsInt()
+  @Min(0)
+  position: number;
 
   @IsString()
   @IsOptional()
