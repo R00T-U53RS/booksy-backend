@@ -39,3 +39,8 @@
 - Add the option to change the profile, by adding/removing bookmarks
 - Add option to show a random bookmark by choosing
 - Maybe use some custom solution, which will have the id prefix to check for, then depending upon that, we could update it, like as a start point
+- Think about if user has way too many bookmarks, then we should check if we can handle it, or some different approach for those
+
+**Some Problems**
+
+- When we sync, we use parentId, but the problem with that is, incase user deletes or we implement our new system of updating them, and switching then it could become a problem
