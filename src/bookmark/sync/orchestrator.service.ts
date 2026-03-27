@@ -1,3 +1,5 @@
+import { randomUUID } from 'crypto';
+
 import { Injectable, Logger } from '@nestjs/common';
 
 import { User } from '../../users/entities/user.entity';
@@ -32,6 +34,9 @@ export class BookmarkSyncService {
   ): Promise<SyncStats> {
     this.logger.log(`Starting sync for profile ${profileId}, user ${user.id}`);
 
+    // Generate sync batch ID for grouping related changes
+    const syncBatchId = randomUUID();
+
     this.validator.validateSyncData(bookmarks);
 
     const [profile, existingByParent] = await Promise.all([
@@ -52,11 +57,11 @@ export class BookmarkSyncService {
 
     const stats = await this.processor.processChangesInTransaction(
       { modified, moved, added: remainingAdded, deleted: remainingDeleted },
-      { profileId, user, profile },
+      { profileId, user, profile, syncBatchId },
     );
 
     this.logger.log(
-      `Sync completed for profile ${profileId}: ${JSON.stringify(stats)}`,
+      `Sync completed for profile ${profileId}: ${JSON.stringify(stats)} (batch: ${syncBatchId})`,
     );
     return stats;
   }

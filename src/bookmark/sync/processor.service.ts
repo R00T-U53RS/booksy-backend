@@ -4,6 +4,9 @@ import { DataSource, In, Repository } from 'typeorm';
 
 import { Profile } from '../../profile/entities/profile.entity';
 import { User } from '../../users/entities/user.entity';
+import { BookmarkChangeLog } from '../change-tracker/bookmark-change-log.entity';
+import { BookmarkChangeTracker } from '../change-tracker/change-tracker.service';
+import { ChangeSource } from '../change-tracker/enums';
 import { SyncBookmarkItemDto } from '../dto/sync-request.dto';
 import { Bookmark } from '../entity/bookmark.entity';
 
@@ -21,6 +24,7 @@ interface ProcessContext {
   profileId: string;
   user: User;
   profile: Profile;
+  syncBatchId?: string;
 }
 
 interface Changes {
@@ -44,6 +48,7 @@ export class BookmarkProcessor {
     @InjectRepository(Profile)
     private readonly profileRepository: Repository<Profile>,
     private readonly dataSource: DataSource,
+    private readonly changeTracker: BookmarkChangeTracker,
   ) {}
 
   async loadExistingBookmarks(
@@ -103,22 +108,31 @@ export class BookmarkProcessor {
         deleted: 0,
       };
 
+      const changeLogRepo = manager.getRepository(BookmarkChangeLog);
+
       stats.updated += await this.processModifiedItems(
         bookmarkRepo,
+        changeLogRepo,
         changes.modified,
+        context,
       );
       stats.updated += await this.processMovedItems(
         bookmarkRepo,
+        changeLogRepo,
         changes.moved,
+        context,
       );
       stats.created += await this.processAddedItems(
         bookmarkRepo,
+        changeLogRepo,
         changes.added,
         context,
       );
       stats.deleted += await this.processDeletedItems(
         bookmarkRepo,
+        changeLogRepo,
         changes.deleted,
+        context,
       );
 
       return stats;
@@ -128,13 +142,48 @@ export class BookmarkProcessor {
 
   private async processModifiedItems(
     bookmarkRepo: Repository<Bookmark>,
+    changeLogRepo: Repository<BookmarkChangeLog>,
     modified: ChangePair[],
+    context: ProcessContext,
   ): Promise<number> {
     if (modified.length === 0) {
       return 0;
     }
 
-    const modifiedBookmarks = modified.map(({ existing, sync }) => {
+    const oldValuesMap = this.captureOldValues(modified);
+    const modifiedBookmarks = this.applyModifications(modified);
+    await bookmarkRepo.save(modifiedBookmarks);
+    await this.trackModifications(
+      changeLogRepo,
+      modifiedBookmarks,
+      oldValuesMap,
+      context,
+    );
+
+    return modifiedBookmarks.length;
+  }
+
+  private captureOldValues(
+    modified: ChangePair[],
+  ): Map<string, Partial<Bookmark>> {
+    const oldValuesMap = new Map<string, Partial<Bookmark>>();
+    modified.forEach(({ existing }) => {
+      oldValuesMap.set(existing.id, {
+        title: existing.title,
+        url: existing.url,
+        position: existing.position,
+        parentId: existing.parentId,
+        type: existing.type,
+        dateGroupModified: existing.dateGroupModified,
+        description: existing.description,
+        tags: existing.tags,
+      });
+    });
+    return oldValuesMap;
+  }
+
+  private applyModifications(modified: ChangePair[]): Bookmark[] {
+    return modified.map(({ existing, sync }) => {
       const type = BookmarkHelper.determineBookmarkType(sync);
       existing.title = sync.title.trim().slice(0, MAX_TITLE_LENGTH);
       existing.position = sync.index;
@@ -152,20 +201,80 @@ export class BookmarkProcessor {
 
       return existing;
     });
+  }
 
-    await bookmarkRepo.save(modifiedBookmarks);
-    return modifiedBookmarks.length;
+  private async trackModifications(
+    changeLogRepo: Repository<BookmarkChangeLog>,
+    modifiedBookmarks: Bookmark[],
+    oldValuesMap: Map<string, Partial<Bookmark>>,
+    context: ProcessContext,
+  ): Promise<void> {
+    for (const bookmark of modifiedBookmarks) {
+      const oldValues = oldValuesMap.get(bookmark.id);
+      if (oldValues) {
+        const newValues = this.extractNewValues(bookmark);
+        await this.changeTracker.trackUpdateWithRepo(changeLogRepo, {
+          bookmark,
+          oldValues,
+          newValues,
+          source: ChangeSource.SYNC,
+          userId: context.user.id,
+          profileId: context.profileId,
+          syncBatchId: context.syncBatchId,
+        });
+      }
+    }
+  }
+
+  private extractNewValues(bookmark: Bookmark): Partial<Bookmark> {
+    return {
+      title: bookmark.title,
+      url: bookmark.url,
+      position: bookmark.position,
+      parentId: bookmark.parentId,
+      type: bookmark.type,
+      dateGroupModified: bookmark.dateGroupModified,
+      description: bookmark.description,
+      tags: bookmark.tags,
+    };
   }
 
   private async processMovedItems(
     bookmarkRepo: Repository<Bookmark>,
+    changeLogRepo: Repository<BookmarkChangeLog>,
     moved: ChangePair[],
+    context: ProcessContext,
   ): Promise<number> {
     if (moved.length === 0) {
       return 0;
     }
 
-    const movedBookmarks = moved.map(({ existing, sync }) => {
+    const moveData = this.captureMoveData(moved);
+    const movedBookmarks = this.applyMoves(moved);
+    await bookmarkRepo.save(movedBookmarks);
+    await this.trackMoves(changeLogRepo, moveData, context);
+
+    return movedBookmarks.length;
+  }
+
+  private captureMoveData(moved: ChangePair[]): Array<{
+    bookmark: Bookmark;
+    oldPosition: number;
+    oldParentId: string | null;
+    newPosition: number;
+    newParentId: string;
+  }> {
+    return moved.map(({ existing, sync }) => ({
+      bookmark: existing,
+      oldPosition: existing.position,
+      oldParentId: existing.parentId,
+      newPosition: sync.index,
+      newParentId: sync.parentId ?? '',
+    }));
+  }
+
+  private applyMoves(moved: ChangePair[]): Bookmark[] {
+    return moved.map(({ existing, sync }) => {
       existing.position = sync.index;
       existing.parentId = sync.parentId ?? '';
       existing.deleted = false;
@@ -181,13 +290,37 @@ export class BookmarkProcessor {
 
       return existing;
     });
+  }
 
-    await bookmarkRepo.save(movedBookmarks);
-    return movedBookmarks.length;
+  private async trackMoves(
+    changeLogRepo: Repository<BookmarkChangeLog>,
+    moveData: Array<{
+      bookmark: Bookmark;
+      oldPosition: number;
+      oldParentId: string | null;
+      newPosition: number;
+      newParentId: string;
+    }>,
+    context: ProcessContext,
+  ): Promise<void> {
+    for (const move of moveData) {
+      await this.changeTracker.trackMoveWithRepo(changeLogRepo, {
+        bookmark: move.bookmark,
+        oldPosition: move.oldPosition,
+        newPosition: move.newPosition,
+        oldParentId: move.oldParentId,
+        newParentId: move.newParentId,
+        source: ChangeSource.SYNC,
+        userId: context.user.id,
+        profileId: context.profileId,
+        syncBatchId: context.syncBatchId,
+      });
+    }
   }
 
   private async processAddedItems(
     bookmarkRepo: Repository<Bookmark>,
+    changeLogRepo: Repository<BookmarkChangeLog>,
     added: SyncBookmarkItemDto[],
     context: ProcessContext,
   ): Promise<number> {
@@ -213,15 +346,40 @@ export class BookmarkProcessor {
     });
 
     await bookmarkRepo.save(newBookmarks);
+
+    // Track creations after save (using transaction repository)
+    for (const bookmark of newBookmarks) {
+      await this.changeTracker.trackCreationWithRepo(changeLogRepo, {
+        bookmark,
+        source: ChangeSource.SYNC,
+        userId: context.user.id,
+        profileId: context.profileId,
+        syncBatchId: context.syncBatchId,
+      });
+    }
+
     return newBookmarks.length;
   }
 
   private async processDeletedItems(
     bookmarkRepo: Repository<Bookmark>,
+    changeLogRepo: Repository<BookmarkChangeLog>,
     deleted: Bookmark[],
+    context: ProcessContext,
   ): Promise<number> {
     if (deleted.length === 0) {
       return 0;
+    }
+
+    // Track deletions before updating (need full bookmark data)
+    for (const bookmark of deleted) {
+      await this.changeTracker.trackDeletionWithRepo(changeLogRepo, {
+        bookmark,
+        source: ChangeSource.SYNC,
+        userId: context.user.id,
+        profileId: context.profileId,
+        syncBatchId: context.syncBatchId,
+      });
     }
 
     const deletedIds = deleted.map(bookmark => bookmark.id);

@@ -5,6 +5,8 @@ import { IsNull, Repository } from 'typeorm';
 import { Profile } from '../profile/entities/profile.entity';
 import { User } from '../users/entities/user.entity';
 
+import { BookmarkChangeTracker } from './change-tracker/change-tracker.service';
+import { ChangeSource } from './change-tracker/enums';
 import { CreateBookmarkDto } from './dto/create-request.dto';
 import { SyncBookmarkItemDto } from './dto/sync-request.dto';
 import { Bookmark } from './entity/bookmark.entity';
@@ -18,6 +20,7 @@ export class BookmarkService {
     @InjectRepository(Profile)
     private readonly profileRepository: Repository<Profile>,
     private readonly bookmarkSyncService: BookmarkSyncService,
+    private readonly changeTracker: BookmarkChangeTracker,
   ) {}
 
   findAllBookmarksInProfile(
@@ -59,13 +62,38 @@ export class BookmarkService {
       user,
     });
 
-    return this.bookmarksRepository.save(bookmark);
+    const savedBookmark = await this.bookmarksRepository.save(bookmark);
+
+    // Track creation
+    await this.changeTracker.trackCreation({
+      bookmark: savedBookmark,
+      source: ChangeSource.MANUAL_UPDATE,
+      userId: user.id,
+      profileId,
+    });
+
+    return savedBookmark;
   }
 
   async update(
     profileId: string,
     id: string,
     updateData: Partial<Bookmark>,
+    userId: string,
+  ): Promise<Bookmark> {
+    const bookmark = await this.findBookmarkForUpdate(profileId, id, userId);
+
+    const oldValues = this.captureBookmarkValues(bookmark);
+    Object.assign(bookmark, updateData);
+    const savedBookmark = await this.bookmarksRepository.save(bookmark);
+    await this.trackBookmarkUpdate(savedBookmark, oldValues, userId, profileId);
+
+    return savedBookmark;
+  }
+
+  private async findBookmarkForUpdate(
+    profileId: string,
+    id: string,
     userId: string,
   ): Promise<Bookmark> {
     const bookmark = await this.bookmarksRepository.findOne({
@@ -80,8 +108,37 @@ export class BookmarkService {
       throw new NotFoundException(`Bookmark with id ${id} not found`);
     }
 
-    Object.assign(bookmark, updateData);
-    return this.bookmarksRepository.save(bookmark);
+    return bookmark;
+  }
+
+  private captureBookmarkValues(bookmark: Bookmark): Partial<Bookmark> {
+    return {
+      title: bookmark.title,
+      url: bookmark.url,
+      position: bookmark.position,
+      parentId: bookmark.parentId,
+      type: bookmark.type,
+      dateGroupModified: bookmark.dateGroupModified,
+      description: bookmark.description,
+      tags: bookmark.tags,
+    };
+  }
+
+  private async trackBookmarkUpdate(
+    bookmark: Bookmark,
+    oldValues: Partial<Bookmark>,
+    userId: string,
+    profileId: string,
+  ): Promise<void> {
+    const newValues = this.captureBookmarkValues(bookmark);
+    await this.changeTracker.trackUpdate({
+      bookmark,
+      oldValues,
+      newValues,
+      source: ChangeSource.MANUAL_UPDATE,
+      userId,
+      profileId,
+    });
   }
 
   buildTree(bookmarks: Bookmark[]): Array<Bookmark & { children: Bookmark[] }> {
