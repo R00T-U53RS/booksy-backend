@@ -5,6 +5,7 @@ import {
   Param,
   Patch,
   Post,
+  Query,
   Request,
   UseGuards,
 } from '@nestjs/common';
@@ -13,14 +14,20 @@ import { JwtGuard } from '../auth/guards/jwt.guard';
 import { User } from '../users/entities/user.entity';
 
 import { BookmarkService } from './bookmark.service';
+import { BookmarkHistoryService } from './change-tracker/history.service';
 import { CreateBookmarkDto } from './dto/create-request.dto';
+import { GetRecentChangesDto } from './dto/history-request.dto';
+import { BookmarkHistoryResponseDto } from './dto/history-response.dto';
 import { SyncBookmarkItemDto } from './dto/sync-request.dto';
 import { Bookmark } from './entity/bookmark.entity';
 
 @Controller('profiles/:profileId/bookmarks')
 @UseGuards(JwtGuard)
 export class BookmarkController {
-  constructor(private readonly bookmarkService: BookmarkService) {}
+  constructor(
+    private readonly bookmarkService: BookmarkService,
+    private readonly historyService: BookmarkHistoryService,
+  ) {}
 
   @Get()
   getAllInProfileFlat(
@@ -69,6 +76,40 @@ export class BookmarkController {
     @Request() request: { user: User },
   ) {
     return this.bookmarkService.sync(profileId, request.user, bookmarks);
+  }
+
+  @Get('history/recent')
+  async getRecentChanges(
+    @Param('profileId') profileId: string,
+    @Query() query: GetRecentChangesDto,
+    @Request() request: { user: User },
+  ): Promise<BookmarkHistoryResponseDto> {
+    const limit = query.limit ?? 50;
+    const { changes, total } = await this.historyService.getRecentChanges(
+      profileId,
+      request.user.id,
+      limit,
+    );
+
+    const changeLogDtos = changes.map(changeLog => ({
+      id: changeLog.id,
+      bookmarkId: changeLog.bookmarkId,
+      bookmarkTitle: changeLog.bookmark?.title,
+      changeType: changeLog.changeType,
+      source: changeLog.source,
+      fieldChanges: changeLog.fieldChanges,
+      oldValues: changeLog.oldValues,
+      newValues: changeLog.newValues,
+      createdAt: changeLog.createdAt,
+      syncBatchId: changeLog.syncBatchId,
+    }));
+
+    return {
+      changes: changeLogDtos,
+      total,
+      limit,
+      offset: 0,
+    };
   }
 
   @Patch(':id')
