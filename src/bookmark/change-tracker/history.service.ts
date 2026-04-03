@@ -1,9 +1,19 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { In, Repository, SelectQueryBuilder } from 'typeorm';
 
+import {
+  buildBatchAggregates,
+  type HistoryBatchAggregate,
+} from './batch-history.util';
+import { BookmarkChangeLogQueryRepository } from './bookmark-change-log-query.repository';
 import { BookmarkChangeLog } from './bookmark-change-log.entity';
 import { ChangeType } from './enums';
+import {
+  clampHistoryListLimit,
+  MAX_BATCH_PAGE_SIZE,
+  MIN_BATCH_PAGE_SIZE,
+} from './history-query.constants';
 
 export interface HistoryQueryOptions {
   limit?: number;
@@ -13,114 +23,127 @@ export interface HistoryQueryOptions {
   endDate?: Date;
 }
 
+export type { HistoryBatchAggregate } from './batch-history.util';
+
+type HistoryScopeField = 'profileId' | 'bookmarkId';
+
 @Injectable()
 export class BookmarkHistoryService {
   constructor(
     @InjectRepository(BookmarkChangeLog)
     private readonly changeLogRepository: Repository<BookmarkChangeLog>,
+    private readonly changeLogQueryRepository: BookmarkChangeLogQueryRepository,
   ) {}
 
-  /**
-   * Get recent changes for a profile (activity feed)
-   */
-  async getRecentChanges(
-    profileId: string,
-    userId: string,
-    limit: number = 50,
-  ): Promise<{ changes: BookmarkChangeLog[]; total: number }> {
-    const [changes, total] = await this.changeLogRepository.findAndCount({
-      where: {
-        profileId,
-        userId,
-      },
-      order: {
-        createdAt: 'DESC',
-      },
-      take: limit,
-      relations: ['bookmark'],
-    });
-
-    return { changes, total };
-  }
-
-  /**
-   * Get all changes for a profile with optional filters
-   */
-  async getProfileHistory(
+  getProfileHistory(
     profileId: string,
     userId: string,
     options: HistoryQueryOptions = {},
   ): Promise<{ changes: BookmarkChangeLog[]; total: number }> {
-    const { limit = 50, offset = 0, changeType, startDate, endDate } = options;
-
-    const queryBuilder = this.changeLogRepository
-      .createQueryBuilder('changeLog')
-      .where('changeLog.profileId = :profileId', { profileId })
-      .andWhere('changeLog.userId = :userId', { userId })
-      .orderBy('changeLog.createdAt', 'DESC')
-      .take(limit)
-      .skip(offset)
-      .leftJoinAndSelect('changeLog.bookmark', 'bookmark');
-
-    if (changeType) {
-      queryBuilder.andWhere('changeLog.changeType = :changeType', {
-        changeType,
-      });
-    }
-
-    if (startDate) {
-      queryBuilder.andWhere('changeLog.createdAt >= :startDate', {
-        startDate,
-      });
-    }
-
-    if (endDate) {
-      queryBuilder.andWhere('changeLog.createdAt <= :endDate', { endDate });
-    }
-
-    const [changes, total] = await queryBuilder.getManyAndCount();
-
-    return { changes, total };
+    return this.runScopedHistoryQuery('profileId', profileId, userId, options);
   }
 
-  /**
-   * Get all changes for a specific bookmark
-   */
-  async getBookmarkHistory(
+  getBookmarkHistory(
     bookmarkId: string,
     userId: string,
     options: HistoryQueryOptions = {},
   ): Promise<{ changes: BookmarkChangeLog[]; total: number }> {
-    const { limit = 50, offset = 0, changeType, startDate, endDate } = options;
+    return this.runScopedHistoryQuery(
+      'bookmarkId',
+      bookmarkId,
+      userId,
+      options,
+    );
+  }
 
-    const queryBuilder = this.changeLogRepository
+  private async runScopedHistoryQuery(
+    field: HistoryScopeField,
+    value: string,
+    userId: string,
+    options: HistoryQueryOptions,
+  ): Promise<{ changes: BookmarkChangeLog[]; total: number }> {
+    const { limit = 50, offset = 0, changeType, startDate, endDate } = options;
+    const safeLimit = clampHistoryListLimit(limit);
+    const safeOffset = Math.max(0, offset);
+
+    const qb = this.buildHistoryQueryBuilder(field, value, userId, {
+      changeType,
+      startDate,
+      endDate,
+    })
+      .take(safeLimit)
+      .skip(safeOffset);
+
+    const [changes, total] = await qb.getManyAndCount();
+    return { changes, total };
+  }
+
+  private buildHistoryQueryBuilder(
+    field: HistoryScopeField,
+    value: string,
+    userId: string,
+    filters: Pick<HistoryQueryOptions, 'changeType' | 'startDate' | 'endDate'>,
+  ): SelectQueryBuilder<BookmarkChangeLog> {
+    const { changeType, startDate, endDate } = filters;
+    const qb = this.changeLogRepository
       .createQueryBuilder('changeLog')
-      .where('changeLog.bookmarkId = :bookmarkId', { bookmarkId })
+      .where(`changeLog.${field} = :scopeValue`, { scopeValue: value })
       .andWhere('changeLog.userId = :userId', { userId })
       .orderBy('changeLog.createdAt', 'DESC')
-      .take(limit)
-      .skip(offset)
+      .addOrderBy('changeLog.version', 'DESC')
       .leftJoinAndSelect('changeLog.bookmark', 'bookmark');
 
     if (changeType) {
-      queryBuilder.andWhere('changeLog.changeType = :changeType', {
-        changeType,
-      });
+      qb.andWhere('changeLog.changeType = :changeType', { changeType });
     }
-
     if (startDate) {
-      queryBuilder.andWhere('changeLog.createdAt >= :startDate', {
-        startDate,
-      });
+      qb.andWhere('changeLog.createdAt >= :startDate', { startDate });
     }
-
     if (endDate) {
-      queryBuilder.andWhere('changeLog.createdAt <= :endDate', { endDate });
+      qb.andWhere('changeLog.createdAt <= :endDate', { endDate });
+    }
+    return qb;
+  }
+
+  /**
+   * Paginated list of change batches (non-null sync_batch_id only). Each batch includes full log rows.
+   */
+  async getBatchedHistory(
+    profileId: string,
+    userId: string,
+    limit: number = 10,
+    offset: number = 0,
+  ): Promise<{ batches: HistoryBatchAggregate[]; total: number }> {
+    const safeLimit = Math.min(
+      MAX_BATCH_PAGE_SIZE,
+      Math.max(MIN_BATCH_PAGE_SIZE, limit),
+    );
+    const safeOffset = Math.max(0, offset);
+
+    const { syncBatchIds, total } =
+      await this.changeLogQueryRepository.findBatchIdsPage(
+        profileId,
+        userId,
+        safeLimit,
+        safeOffset,
+      );
+
+    if (syncBatchIds.length === 0) {
+      return { batches: [], total };
     }
 
-    const [changes, total] = await queryBuilder.getManyAndCount();
+    const rows = await this.changeLogRepository.find({
+      where: {
+        profileId,
+        userId,
+        syncBatchId: In(syncBatchIds),
+      },
+      relations: ['bookmark'],
+      order: { createdAt: 'ASC', version: 'ASC' },
+    });
 
-    return { changes, total };
+    const batches = buildBatchAggregates(syncBatchIds, rows);
+    return { batches, total };
   }
 
   /**
@@ -137,6 +160,7 @@ export class BookmarkHistoryService {
       },
       order: {
         createdAt: 'ASC',
+        version: 'ASC',
       },
       relations: ['bookmark'],
     });

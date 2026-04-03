@@ -22,142 +22,38 @@ export class BookmarkChangeTracker {
     private readonly valueUtils: BookmarkValueUtils,
   ) {}
 
-  /**
-   * Track a bookmark update with field-level changes
-   */
+  private async nextBookmarkLogVersion(
+    bookmarkId: string,
+    repo: Repository<BookmarkChangeLog>,
+  ): Promise<number> {
+    const row = await repo
+      .createQueryBuilder('log')
+      .select('COALESCE(MAX(log.version), 0)', 'max')
+      .where('log.bookmarkId = :bookmarkId', { bookmarkId })
+      .getRawOne<{ max: string }>();
+    return Number(row?.max) + 1;
+  }
+
   trackUpdate(options: TrackUpdateOptions): Promise<BookmarkChangeLog | null> {
-    const {
-      bookmark,
-      oldValues,
-      newValues,
-      source,
-      userId,
-      profileId,
-      syncBatchId,
-    } = options;
-
-    const fieldChanges = this.fieldDiff.generateFieldChanges(
-      oldValues,
-      newValues,
-    );
-
-    // Skip if no actual changes detected
-    if (fieldChanges.length === 0) {
-      return Promise.resolve(null);
-    }
-
-    const changeLog = this.changeLogRepository.create({
-      bookmarkId: bookmark.id,
-      changeType: ChangeType.UPDATED,
-      source,
-      fieldChanges,
-      oldValues: this.valueUtils.sanitizeValues(oldValues),
-      newValues: this.valueUtils.sanitizeValues(newValues),
-      userId,
-      profileId,
-      syncBatchId,
-    });
-
-    return this.changeLogRepository.save(changeLog);
+    return this.trackUpdateWithRepo(this.changeLogRepository, options);
   }
 
-  /**
-   * Track a bookmark creation
-   */
   trackCreation(options: TrackCreationOptions): Promise<BookmarkChangeLog> {
-    const { bookmark, source, userId, profileId, syncBatchId } = options;
-
-    const newValues = this.fieldDiff.extractTrackedFields(bookmark);
-    const fieldChanges = this.fieldDiff.buildCreationFieldChanges(newValues);
-
-    const changeLog = this.changeLogRepository.create({
-      bookmarkId: bookmark.id,
-      changeType: ChangeType.CREATED,
-      source,
-      fieldChanges,
-      oldValues: undefined,
-      newValues: this.valueUtils.sanitizeValues(newValues),
-      userId,
-      profileId,
-      syncBatchId,
-    });
-
-    return this.changeLogRepository.save(changeLog);
+    return this.trackCreationWithRepo(this.changeLogRepository, options);
   }
 
-  /**
-   * Track a bookmark deletion
-   */
   trackDeletion(options: TrackDeletionOptions): Promise<BookmarkChangeLog> {
-    const { bookmark, source, userId, profileId, syncBatchId } = options;
-
-    const oldValues = this.fieldDiff.extractTrackedFields(bookmark);
-    const fieldChanges = this.fieldDiff.buildDeletionFieldChanges(oldValues);
-
-    const changeLog = this.changeLogRepository.create({
-      bookmarkId: bookmark.id,
-      changeType: ChangeType.DELETED,
-      source,
-      fieldChanges,
-      oldValues: this.valueUtils.sanitizeValues(oldValues),
-      newValues: undefined,
-      userId,
-      profileId,
-      syncBatchId,
-    });
-
-    return this.changeLogRepository.save(changeLog);
+    return this.trackDeletionWithRepo(this.changeLogRepository, options);
   }
 
-  /**
-   * Track a bookmark move (position/parent change)
-   */
   trackMove(options: TrackMoveOptions): Promise<BookmarkChangeLog> {
-    const {
-      bookmark,
-      oldPosition,
-      newPosition,
-      oldParentId,
-      newParentId,
-      source,
-      userId,
-      profileId,
-      syncBatchId,
-    } = options;
-
-    const fieldChanges = this.fieldDiff.buildMoveFieldChanges(
-      oldPosition,
-      newPosition,
-      oldParentId,
-      newParentId,
-    );
-    const { oldValues, newValues } = this.fieldDiff.buildMoveValues({
-      bookmark,
-      oldPosition,
-      newPosition,
-      oldParentId,
-      newParentId,
-    });
-
-    const changeLog = this.changeLogRepository.create({
-      bookmarkId: bookmark.id,
-      changeType: ChangeType.MOVED,
-      source,
-      fieldChanges,
-      oldValues: this.valueUtils.sanitizeValues(oldValues),
-      newValues: this.valueUtils.sanitizeValues(newValues),
-      userId,
-      profileId,
-      syncBatchId,
-    });
-
-    return this.changeLogRepository.save(changeLog);
+    return this.trackMoveWithRepo(this.changeLogRepository, options);
   }
 
   /**
    * Track a bookmark update with field-level changes (using provided repository)
    */
-  trackUpdateWithRepo(
+  async trackUpdateWithRepo(
     changeLogRepo: Repository<BookmarkChangeLog>,
     options: TrackUpdateOptions,
   ): Promise<BookmarkChangeLog | null> {
@@ -177,11 +73,17 @@ export class BookmarkChangeTracker {
     );
 
     if (fieldChanges.length === 0) {
-      return Promise.resolve(null);
+      return null;
     }
+
+    const version = await this.nextBookmarkLogVersion(
+      bookmark.id,
+      changeLogRepo,
+    );
 
     const changeLog = changeLogRepo.create({
       bookmarkId: bookmark.id,
+      version,
       changeType: ChangeType.UPDATED,
       source,
       fieldChanges,
@@ -198,20 +100,24 @@ export class BookmarkChangeTracker {
   /**
    * Track a bookmark creation (using provided repository)
    */
-  trackCreationWithRepo(
+  async trackCreationWithRepo(
     changeLogRepo: Repository<BookmarkChangeLog>,
     options: TrackCreationOptions,
   ): Promise<BookmarkChangeLog> {
     const { bookmark, source, userId, profileId, syncBatchId } = options;
 
     const newValues = this.fieldDiff.extractTrackedFields(bookmark);
-    const fieldChanges = this.fieldDiff.buildCreationFieldChanges(newValues);
+    const version = await this.nextBookmarkLogVersion(
+      bookmark.id,
+      changeLogRepo,
+    );
 
     const changeLog = changeLogRepo.create({
       bookmarkId: bookmark.id,
+      version,
       changeType: ChangeType.CREATED,
       source,
-      fieldChanges,
+      fieldChanges: null,
       oldValues: undefined,
       newValues: this.valueUtils.sanitizeValues(newValues),
       userId,
@@ -225,7 +131,7 @@ export class BookmarkChangeTracker {
   /**
    * Track a bookmark deletion (using provided repository)
    */
-  trackDeletionWithRepo(
+  async trackDeletionWithRepo(
     changeLogRepo: Repository<BookmarkChangeLog>,
     options: TrackDeletionOptions,
   ): Promise<BookmarkChangeLog> {
@@ -233,9 +139,14 @@ export class BookmarkChangeTracker {
 
     const oldValues = this.fieldDiff.extractTrackedFields(bookmark);
     const fieldChanges = this.fieldDiff.buildDeletionFieldChanges(oldValues);
+    const version = await this.nextBookmarkLogVersion(
+      bookmark.id,
+      changeLogRepo,
+    );
 
     const changeLog = changeLogRepo.create({
       bookmarkId: bookmark.id,
+      version,
       changeType: ChangeType.DELETED,
       source,
       fieldChanges,
@@ -252,7 +163,7 @@ export class BookmarkChangeTracker {
   /**
    * Track a bookmark move (using provided repository)
    */
-  trackMoveWithRepo(
+  async trackMoveWithRepo(
     changeLogRepo: Repository<BookmarkChangeLog>,
     options: TrackMoveOptions,
   ): Promise<BookmarkChangeLog> {
@@ -282,8 +193,14 @@ export class BookmarkChangeTracker {
       newParentId,
     });
 
+    const version = await this.nextBookmarkLogVersion(
+      bookmark.id,
+      changeLogRepo,
+    );
+
     const changeLog = changeLogRepo.create({
       bookmarkId: bookmark.id,
+      version,
       changeType: ChangeType.MOVED,
       source,
       fieldChanges,

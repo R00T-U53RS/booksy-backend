@@ -59,6 +59,7 @@ export class BookmarkProcessor {
       where: {
         profile: { id: profileId, user: { id: userId } },
         user: { id: userId },
+        deleted: false,
       },
     });
 
@@ -347,7 +348,6 @@ export class BookmarkProcessor {
 
     await bookmarkRepo.save(newBookmarks);
 
-    // Track creations after save (using transaction repository)
     for (const bookmark of newBookmarks) {
       await this.changeTracker.trackCreationWithRepo(changeLogRepo, {
         bookmark,
