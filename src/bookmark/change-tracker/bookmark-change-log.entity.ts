@@ -21,33 +21,35 @@ import type { BookmarkValuesSnapshot } from './types';
 @Index(['syncBatchId'])
 @Index(['createdAt'])
 @Index(['bookmarkId', 'createdAt'])
+@Index(['changeType'])
+@Index(['source'])
+@Index(['bookmarkId', 'changeType'])
+@Index(['bookmarkId', 'version'], { unique: true })
 export class BookmarkChangeLog {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  // Reference to the bookmark that changed
   @ManyToOne(() => Bookmark, { nullable: false, onDelete: 'CASCADE' })
   bookmark: Bookmark;
 
   @Column()
   bookmarkId: string;
 
-  // Change metadata
-  @Column({ enum: ChangeType })
+  @Column({ type: 'int' })
+  version: number;
+
+  @Column({ type: 'enum', enum: ChangeType })
   changeType: ChangeType;
 
-  @Column({ enum: ChangeSource })
+  @Column({ type: 'enum', enum: ChangeSource })
   source: ChangeSource;
 
-  // Field-level changes (JSONB for flexibility)
-  @Column({ type: 'jsonb' })
-  fieldChanges: FieldChange[];
+  @Column({ type: 'jsonb', nullable: true })
+  fieldChanges?: FieldChange[] | null;
 
-  // Snapshot of old values (for rollback/debugging)
   @Column({ type: 'jsonb', nullable: true })
   oldValues?: BookmarkValuesSnapshot;
 
-  // Snapshot of new values
   @Column({ type: 'jsonb', nullable: true })
   newValues?: BookmarkValuesSnapshot;
 
@@ -65,11 +67,9 @@ export class BookmarkChangeLog {
   @Column()
   profileId: string;
 
-  // Timestamp
   @CreateDateColumn()
   createdAt: Date;
 
-  // Optional: sync batch ID for grouping related changes
-  @Column({ nullable: true })
-  syncBatchId?: string;
+  @Column({ type: 'uuid', nullable: true })
+  syncBatchId?: string | null;
 }

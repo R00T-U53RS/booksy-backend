@@ -58,27 +58,6 @@ export class BookmarkFieldDiff {
   }
 
   /**
-   * Build field changes for creation (all fields are added)
-   */
-  buildCreationFieldChanges(newValues: Partial<Bookmark>): FieldChange[] {
-    const changes: FieldChange[] = [];
-
-    for (const field of this.trackedFields) {
-      const value = newValues[field as keyof Bookmark];
-      if (value !== undefined) {
-        changes.push({
-          field,
-          oldValue: null,
-          newValue: this.serializeToFieldValue(value),
-          changeType: 'added' as const,
-        });
-      }
-    }
-
-    return changes;
-  }
-
-  /**
    * Build field changes for deletion (all fields are removed)
    */
   buildDeletionFieldChanges(oldValues: Partial<Bookmark>): FieldChange[] {

@@ -1,3 +1,4 @@
+import { Exclude, Expose } from 'class-transformer';
 import {
   Column,
   CreateDateColumn,
@@ -16,40 +17,53 @@ export enum BookmarkType {
 }
 
 @Entity('bookmarks')
+@Exclude()
 export class Bookmark {
+  @Expose()
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
+  @Expose()
   @Column({ nullable: true })
   parentId: string;
 
+  @Expose()
   @Column({ default: 0 })
   position: number;
 
+  @Expose()
   @Column({ enum: BookmarkType })
   type: BookmarkType;
 
+  @Expose()
   @Column()
   title: string;
 
+  @Expose()
   @Column({ nullable: true })
   url: string;
 
+  @Expose()
   @Column({ nullable: true })
   description?: string;
 
+  @Expose()
   @CreateDateColumn()
   createdAt: Date;
 
+  @Expose()
   @UpdateDateColumn()
   updatedAt: Date;
 
+  @Expose()
   @Column({ type: 'timestamp', nullable: true })
   dateGroupModified: Date;
 
+  @Expose()
   @Column({ nullable: true })
   tags?: string;
 
+  @Expose()
   @Column({ default: false })
   deleted: boolean;
 

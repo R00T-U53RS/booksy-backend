@@ -1,3 +1,5 @@
+import { randomUUID } from 'crypto';
+
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { IsNull, Repository } from 'typeorm';
@@ -26,12 +28,13 @@ export class BookmarkService {
   findAllBookmarksInProfile(
     profileId: string,
     userId: string,
+    includeDeleted = false,
   ): Promise<Bookmark[]> {
     return this.bookmarksRepository.find({
       where: {
         profile: { id: profileId, user: { id: userId } },
         user: { id: userId },
-        deleted: false,
+        ...(includeDeleted ? {} : { deleted: false }),
       },
     });
   }
@@ -64,12 +67,13 @@ export class BookmarkService {
 
     const savedBookmark = await this.bookmarksRepository.save(bookmark);
 
-    // Track creation
+    const syncBatchId = randomUUID();
     await this.changeTracker.trackCreation({
       bookmark: savedBookmark,
       source: ChangeSource.MANUAL_UPDATE,
       userId: user.id,
       profileId,
+      syncBatchId,
     });
 
     return savedBookmark;
@@ -86,7 +90,12 @@ export class BookmarkService {
     const oldValues = this.captureBookmarkValues(bookmark);
     Object.assign(bookmark, updateData);
     const savedBookmark = await this.bookmarksRepository.save(bookmark);
-    await this.trackBookmarkUpdate(savedBookmark, oldValues, userId, profileId);
+    const syncBatchId = randomUUID();
+    await this.trackBookmarkUpdate(savedBookmark, oldValues, {
+      userId,
+      profileId,
+      syncBatchId,
+    });
 
     return savedBookmark;
   }
@@ -127,8 +136,7 @@ export class BookmarkService {
   private async trackBookmarkUpdate(
     bookmark: Bookmark,
     oldValues: Partial<Bookmark>,
-    userId: string,
-    profileId: string,
+    context: { userId: string; profileId: string; syncBatchId: string },
   ): Promise<void> {
     const newValues = this.captureBookmarkValues(bookmark);
     await this.changeTracker.trackUpdate({
@@ -136,8 +144,9 @@ export class BookmarkService {
       oldValues,
       newValues,
       source: ChangeSource.MANUAL_UPDATE,
-      userId,
-      profileId,
+      userId: context.userId,
+      profileId: context.profileId,
+      syncBatchId: context.syncBatchId,
     });
   }
 

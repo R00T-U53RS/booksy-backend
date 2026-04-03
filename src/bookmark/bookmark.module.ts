@@ -5,6 +5,7 @@ import { Profile } from '../profile/entities/profile.entity';
 
 import { BookmarkController } from './bookmark.controller';
 import { BookmarkService } from './bookmark.service';
+import { BookmarkChangeLogQueryRepository } from './change-tracker/bookmark-change-log-query.repository';
 import { BookmarkChangeLog } from './change-tracker/bookmark-change-log.entity';
 import { BookmarkChangeTracker } from './change-tracker/change-tracker.service';
 import { BookmarkFieldDiff } from './change-tracker/field-diff.service';
@@ -29,6 +30,7 @@ import { BookmarkValidator } from './sync/validator.service';
     BookmarkProcessor,
     BookmarkChangeTracker,
     BookmarkHistoryService,
+    BookmarkChangeLogQueryRepository,
     BookmarkFieldDiff,
     BookmarkValueUtils,
   ],
