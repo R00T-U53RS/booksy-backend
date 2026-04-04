@@ -1,0 +1,25 @@
+[
+  {
+    "id": "0",
+    "title": "Bookmarks bar",
+    "parentId": "",
+    "index": 0,
+    "dateAdded": 1700000000000,
+    "children": [
+      {
+        "id": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+        "title": "Folder B",
+        "parentId": "0",
+        "index": 0,
+        "dateAdded": 1700000000000
+      },
+      {
+        "id": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+        "title": "Folder A",
+        "parentId": "0",
+        "index": 1,
+        "dateAdded": 1700000000000
+      }
+    ]
+  }
+]

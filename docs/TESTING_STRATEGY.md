@@ -98,18 +98,26 @@ Current layout:
 
 ```text
 test/
+  constants/
+    bookmark-sync-history.constants.ts
   fixtures/
-    bookmark-sync/
-      single-bookmark-under-root.json
+    *.json                    (sync scenarios; paths passed to loadSyncFixtureFile as e.g. single-bookmark-under-root.json)
   integration/
-    bookmark-sync.integration.spec.ts
-  assertions/
     bookmark-sync/
-      single-bookmark-under-root.ts
+      mutations.integration.spec.ts
+      history.integration.spec.ts
+  assertions/
+    single-bookmark-under-root.ts
+    bookmark-sync-*.ts
   helpers/
+    assert-found.ts
+    assert-stable-after-identical-resync.ts
+    bookmark-integration-repos.ts
+    clear-bookmark-sync-tables.ts
     clear-test-tables.ts
     create-bookmark-integration-module.ts
     load-sync-fixture.ts
+    seed-second-test-user.ts
     seed-test-user-profile.ts
     setup-bookmark-integration.ts
   setup/
@@ -182,6 +190,8 @@ Do not rely on `NODE_ENV=test` in the workflow for **ConfigModule** validation: 
 
 **Same test command locally and in CI**; only **host and credentials** change through environment variables.
 
+Integration Jest config uses **`maxWorkers: 1`** so multiple `*.integration.spec.ts` files do not run in parallel against the same database (parallel workers would interleave `DELETE`/`INSERT` and cause flaky foreign-key failures).
+
 ---
 
 ## Pre-Commit Hooks vs CI
@@ -212,10 +222,10 @@ Do not rely on `NODE_ENV=test` in the workflow for **ConfigModule** validation: 
 ## What Is Implemented in This Repository
 
 - **Commands:** `npm test` (integration suite), `npm run test:watch`.
-- **Config:** `jest.config.cjs` runs `test/**/*.integration.spec.ts` with `ts-jest` and `tsconfig.spec.json`.
+- **Config:** `jest.config.cjs` runs `test/**/*.integration.spec.ts` with `ts-jest`, `tsconfig.spec.json`, and **`maxWorkers: 1`** so integration suites do not race on one database.
 - **Env loading:** `test/setup/jest.setup.ts` loads `.env.test` if present, otherwise falls back to `.env`. It then sets `NODE_ENV=local` so `src/config/env.validation.ts` succeeds under Jest. Copy `test/env.test.example` to the project root as `.env.test` when you want a dedicated test database.
-- **First integration test:** `bookmark-sync.integration.spec.ts` wires lifecycle only; **`test/assertions/`** holds scenario-specific `expect` blocks (e.g. `single-bookmark-under-root.ts`); **`test/helpers/`** holds reusable setup (DB wipe, seed, module factory, fixtures loader).
-- **Scenario:** seeds `User` + `Profile`, runs `BookmarkService.sync` with `single-bookmark-under-root.json`, asserts bookmark rows and `BookmarkChangeLog` (`CREATED`, `SYNC`).
+- **Integration tests:** `test/integration/bookmark-sync/*.integration.spec.ts` (mutations vs history) share `integration-lifecycle.ts` for Nest bootstrap/teardown; **`test/assertions/`** holds scenario helpers; **`test/helpers/`** holds setup, repos, and idempotent re-sync helpers; **`test/fixtures/`** holds JSON trees referenced by filename (e.g. `single-bookmark-under-root.json`).
+- **Scenario:** seeds `User` + `Profile`, runs `BookmarkService.sync` with a fixture path, asserts bookmark rows and `BookmarkChangeLog` (`CREATED`, `SYNC`).
 - **SQL logging:** `getDatabaseConfig` disables TypeORM query logging when `JEST_WORKER_ID` is set so Jest output stays readable while keeping verbose SQL in normal `NODE_ENV=local` runs.
 
 ---

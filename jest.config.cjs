@@ -2,6 +2,7 @@
 module.exports = {
   preset: 'ts-jest',
   testEnvironment: 'node',
+  maxWorkers: 1,
   roots: ['<rootDir>/test'],
   testMatch: ['**/*.integration.spec.ts'],
   moduleFileExtensions: ['ts', 'js', 'json'],

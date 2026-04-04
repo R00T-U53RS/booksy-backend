@@ -1,0 +1,27 @@
+[
+  {
+    "id": "0",
+    "title": "Bookmarks bar",
+    "parentId": "",
+    "index": 0,
+    "dateAdded": 1700000000000,
+    "children": [
+      {
+        "id": "11111111-1111-4111-8111-111111111111",
+        "title": "Example",
+        "url": "https://example.com/",
+        "parentId": "0",
+        "index": 0,
+        "dateAdded": 1700000000000
+      },
+      {
+        "id": "22222222-2222-4222-8222-222222222222",
+        "title": "Second",
+        "url": "https://second.example/",
+        "parentId": "0",
+        "index": 1,
+        "dateAdded": 1700000000001
+      }
+    ]
+  }
+]
