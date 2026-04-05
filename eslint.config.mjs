@@ -15,6 +15,7 @@ export default tseslint.config(
       'node_modules/**',
       'coverage/**',
       '*.js',
+      '*.cjs',
       '*.d.ts',
     ],
   },
@@ -106,7 +107,7 @@ export default tseslint.config(
       complexity: ['warn', 10],
       'max-depth': ['warn', 4],
       'max-lines': ['warn', 300],
-      'max-lines-per-function': ['warn', 50],
+      'max-lines-per-function': ['warn', 60],
       'max-params': ['warn', 4],
       'no-magic-numbers': [
         'warn',

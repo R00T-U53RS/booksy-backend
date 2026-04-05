@@ -13,6 +13,8 @@ export const getDatabaseConfig = (
   database: configService.get<string>('DB_DATABASE'),
   entities: [`${__dirname}/../**/*.entity{.ts,.js}`],
   synchronize: configService.get<boolean>('DB_SYNC'),
-  logging: configService.get<string>('NODE_ENV') === 'local',
+  logging:
+    configService.get<string>('NODE_ENV') === 'local' &&
+    process.env.JEST_WORKER_ID === undefined,
   namingStrategy: new SnakeNamingStrategy(),
 });

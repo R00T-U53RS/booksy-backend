@@ -1,0 +1,2 @@
+export const PROFILE_HISTORY_QUERY_LIMIT = 50;
+export const BATCH_HISTORY_PAGE_LIMIT = 10;

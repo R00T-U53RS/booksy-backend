@@ -1,0 +1,35 @@
+[
+  {
+    "id": "0",
+    "title": "Bookmarks bar",
+    "parentId": "",
+    "index": 0,
+    "dateAdded": 1700000000000,
+    "children": [
+      {
+        "id": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+        "title": "Folder A",
+        "parentId": "0",
+        "index": 0,
+        "dateAdded": 1700000000000,
+        "children": [
+          {
+            "id": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+            "title": "Moved Link",
+            "url": "https://moved.example/",
+            "parentId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+            "index": 0,
+            "dateAdded": 1700000000000
+          }
+        ]
+      },
+      {
+        "id": "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+        "title": "Folder B",
+        "parentId": "0",
+        "index": 1,
+        "dateAdded": 1700000000000
+      }
+    ]
+  }
+]
